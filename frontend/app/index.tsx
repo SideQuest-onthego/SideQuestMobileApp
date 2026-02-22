@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, ImageBackground, Pressable } from 'react-native';
-const first_page = require('@/assets/images/first_page.png');
 import { Link } from 'expo-router';
+const first_page = require('@/assets/images/first_page.png');
 
 const App = () => {
   return (
