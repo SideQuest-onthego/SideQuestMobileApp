@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
 
   endScreen: {
-    color: "#0F672C",
+    color: "black",
     fontSize: 20,
     fontWeight: "700",
   },
