@@ -7,13 +7,13 @@ import {
   Text,
   View,
 } from "react-native";
-import type { Place } from "../data/places";
+import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
 
 type Props = {
-  data: Place[];
-  onSwipeLeft?: (item: Place) => void;
-  onSwipeRight?: (item: Place) => void;
+  data: ActivityModel[];
+  onSwipeLeft?: (item: ActivityModel) => void;
+  onSwipeRight?: (item: ActivityModel) => void;
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
