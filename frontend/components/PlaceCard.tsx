@@ -1,8 +1,15 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import type { Place } from "../data/places";
+import type { ActivityModel } from "../types/sidequest-models";
 
-export default function PlaceCard({ item }: { item: Place }) {
+function formatPrice(item: ActivityModel) {
+  const { min, max } = item.estimatedCost;
+  if (min === 0 && max === 0) return "Free";
+  if (min === max) return `$${min}`;
+  return `$${min}-$${max}`;
+}
+
+export default function PlaceCard({ item }: { item: ActivityModel }) {
   return (
     <View style={styles.screen}>
       <View style={styles.card}>
@@ -12,12 +19,16 @@ export default function PlaceCard({ item }: { item: Place }) {
           adjustsFontSizeToFit
           minimumFontScale={0.7}
         >
-          {item.title}
+          {item.name}
         </Text>
 
         <View style={styles.imageWrap}>
           <Image
-            source={{ uri: item.image }}
+            source={{
+              uri:
+                item.links?.imageUrl ??
+                "https://picsum.photos/seed/sidequest/800/500",
+            }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -25,14 +36,16 @@ export default function PlaceCard({ item }: { item: Place }) {
 
         <View style={styles.infoRow}>
           <View>
-            <Text style={styles.price}>{item.price}</Text>
+            <Text style={styles.price}>{formatPrice(item)}</Text>
             {item.location && (
-              <Text style={styles.location}>{item.location}</Text>
+              <Text style={styles.location}>
+                {item.location.city}, {item.location.state}
+              </Text>
             )}
           </View>
 
-          {item.distance && (
-            <Text style={styles.distance}>{item.distance}</Text>
+          {item.category && (
+            <Text style={styles.category}>{item.category}</Text>
           )}
         </View>
 
@@ -95,7 +108,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
 
-  distance: {
+  category: {
     fontWeight: "700",
   },
 
