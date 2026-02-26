@@ -5,21 +5,13 @@ import { places } from "../data/places";
 
 export default function SwipeScreen() {
   const { budget } = useLocalSearchParams();
-  const numericBudget = Number(budget);
 
+  // Convert budget safely to a number
+  const numericBudget = Number(budget ?? 0);
 
-  const priceToNumber = (price: string) => {
-    if (price.toLowerCase() === "free") return 0;
-    if (price.includes("-")) {
-      // take the lower end of the range
-      return Number(price.split("-")[0].replace("$", ""));
-    }
-    return Number(price.replace("$", ""));
-  };
-
- 
+  // Filter places using structured estimatedCost data
   const filteredPlaces = places.filter((place) => {
-    return priceToNumber(place.price) <= numericBudget;
+    return place.estimatedCost.min <= numericBudget;
   });
 
   return (
