@@ -35,31 +35,32 @@ export default function PlaceCard({ item }: { item: ActivityModel }) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#CFDAF1",
-    width: "100%",
+  screen: {
+    flex: 1,
+    justifyContent: "center",
     alignItems: "center",
-    paddingTop: 30,
-    paddingHorizontal: 16,
   },
 
-  title: {
-    color: "#0F672C",
-    fontSize: 34,
-    letterSpacing: 3,
-    fontWeight: "700",
-    textAlign: "center",
-    width: "95%",
-    lineHeight: 38,
+  card: {
+    backgroundColor: "#FFFFFF",
+    width: "90%",
+    borderRadius: 28,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "black",
   },
 
   imageWrap: {
-    width: 377,
-    height: 503,
-    borderRadius: 60,
+    width: "100%",
+    height: 380,
+    borderRadius: 24,
     overflow: "hidden",
-    backgroundColor: "#C9D5EA",
-    marginTop: 30,
+  },
+
+  title: {
+    marginTop: 12,
+    fontSize: 24,
+    fontWeight: "800",
   },
 
   image: {
@@ -67,10 +68,38 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
+
   price: {
-    color: "#3F81C4",
-    fontSize: 34,
-    letterSpacing: 3,
+    fontSize: 18,
     fontWeight: "700",
+  },
+
+  location: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
+
+  category: {
+    fontWeight: "700",
+  },
+
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
+
+  button: {
+    flex: 1,
+    textAlign: "center",
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderRadius: 12,
+    fontWeight: "800",
   },
 });
