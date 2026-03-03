@@ -7,13 +7,13 @@ import {
   Text,
   View,
 } from "react-native";
-import type { Place } from "../data/places";
+import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
 
 type Props = {
-  data: Place[];
-  onSwipeLeft?: (item: Place) => void;
-  onSwipeRight?: (item: Place) => void;
+  data: ActivityModel[];
+  onSwipeLeft?: (item: ActivityModel) => void;
+  onSwipeRight?: (item: ActivityModel) => void;
 };
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -22,6 +22,7 @@ const SWIPE_OUT_DURATION = 180;
 
 export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
   const [index, setIndex] = useState(0);
+  const [showTutorial, setShowTutorial] = useState(true);
   const pan = useRef(new Animated.ValueXY()).current;
 
   //The card rotates slightly as it is being dragged
@@ -40,6 +41,8 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
     }),
 
     onPanResponderRelease: (_, g) => {
+      //The tutorial message dissapears after the first swipe
+      setShowTutorial(false);
       //Depending on the distance the card has been dragged,
       //we either intiate a swipe or reset the card to its original position
       if (g.dx > SWIPE_THRESHOLD) forceSwipe("right");
@@ -97,6 +100,16 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
   //Putting it all together
   return (
     <View style={styles.container}>
+      {showTutorial && (
+        //The tutorial message
+        <View style={styles.tutorialOverlay} pointerEvents="none">
+          <View style={styles.tutorialCard}>
+            <Text style={styles.tutorialTitle}>Quick tip</Text>
+            <Text style={styles.tutorialText}>Swipe left to pass ⟵</Text>
+            <Text style={styles.tutorialText}>Swipe right to save ⟶</Text>
+          </View>
+        </View>
+      )}
       <Animated.View
         style={[
           styles.cardLayer,
@@ -133,5 +146,38 @@ const styles = StyleSheet.create({
   cardLayer: {
     width: "100%",
     height: "100%",
+  },
+
+  tutorialOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+
+  tutorialCard: {
+    backgroundColor: "rgba(255,255,255,0.85)",
+    borderRadius: 25,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    width: "80%",
+  },
+
+  tutorialTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+
+  tutorialText: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    marginTop: 6,
   },
 });

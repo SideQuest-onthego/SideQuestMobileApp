@@ -1,8 +1,15 @@
 import React from "react";
 import { Image, StyleSheet, Text, View } from "react-native";
-import type { Place } from "../data/places";
+import type { ActivityModel } from "../types/sidequest-models";
 
-export default function PlaceCard({ item }: { item: Place }) {
+function formatPrice(item: ActivityModel) {
+  const { min, max } = item.estimatedCost;
+  if (min === 0 && max === 0) return "Free";
+  if (min === max) return `$${min}`;
+  return `$${min}-$${max}`;
+}
+
+export default function PlaceCard({ item }: { item: ActivityModel }) {
   return (
     <View style={styles.card}>
       <Text
@@ -11,18 +18,18 @@ export default function PlaceCard({ item }: { item: Place }) {
         adjustsFontSizeToFit
         minimumFontScale={0.7}
       >
-        {item.title}
+        {item.name}
       </Text>
 
       <View style={styles.imageWrap}>
         <Image
-          source={{ uri: item.image }}
+          source={{ uri: item.links?.imageUrl ?? "https://picsum.photos/seed/sidequest/800/500" }}
           style={styles.image}
           resizeMode="cover"
         />
       </View>
 
-      <Text style={styles.price}>{item.price}</Text>
+      <Text style={styles.price}>{formatPrice(item)}</Text>
     </View>
   );
 }
