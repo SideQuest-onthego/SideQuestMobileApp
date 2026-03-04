@@ -8,14 +8,46 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from "@/FirebaseConfig";
 
 export default function SignUpScreen() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSignUp() {
+    setError("");
+    if (!name || !email || !password) {
+      setError("Please fill in all fields.");
+      return;
+    }
+    setLoading(true);
+    try {
+      const credential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(credential.user, { displayName: name });
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      const code = e?.code ?? "";
+      if (code === "auth/email-already-in-use") {
+        setError("An account with this email already exists. Try logging in.");
+      } else if (code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else if (code === "auth/weak-password") {
+        setError("Password must be at least 6 characters.");
+      } else {
+        setError("Sign up failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -67,12 +99,20 @@ export default function SignUpScreen() {
             onChangeText={setPassword}
           />
 
+          {/* Error message */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
           {/* Sign Up Button */}
           <TouchableOpacity
             style={styles.button}
-            onPress={() => router.push("/(tabs)")}
+            onPress={handleSignUp}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>Sign Up</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
           </TouchableOpacity>
 
           {/* Login redirect */}
@@ -171,6 +211,10 @@ const styles = StyleSheet.create({
     color: "#2D6A4F",
     fontWeight: "700",
   },
-
-  
+  errorText: {
+    color: "#D00000",
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: "center",
+  },
 });
