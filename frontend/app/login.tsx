@@ -8,13 +8,42 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/FirebaseConfig";
 
 export default function LoginScreen() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleLogin() {
+    setError("");
+    if (!email || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.replace("/(tabs)");
+    } catch (e: any) {
+      const code = e?.code ?? "";
+      if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/wrong-password") {
+        setError("No account found with these credentials. Please check your email and password or sign up.");
+      } else if (code === "auth/invalid-email") {
+        setError("Please enter a valid email address.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -61,18 +90,26 @@ export default function LoginScreen() {
             <Text style={styles.forgotPasswordText}>Forgot password?</Text>
           </TouchableOpacity>
 
+          {/* Error message */}
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
           {/* Login Button */}
           <TouchableOpacity
             style={styles.button}
-            onPress={() => router.push("/(tabs)")}
+            onPress={handleLogin}
+            disabled={loading}
           >
-            <Text style={styles.buttonText}>Log In</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Log In</Text>
+            )}
           </TouchableOpacity>
 
           {/* Sign Up redirect */}
           <TouchableOpacity onPress={() => router.push("/signup" as any)}>
             <Text style={styles.signupText}>
-              Don't have an account?{" "}
+              Do not have an account?{" "}
               <Text style={styles.signupLink}>Sign up</Text>
             </Text>
           </TouchableOpacity>
@@ -175,6 +212,10 @@ const styles = StyleSheet.create({
     color: "#2D6A4F",
     fontWeight: "700",
   },
-
-  
+  errorText: {
+    color: "#D00000",
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: "center",
+  },
 });
