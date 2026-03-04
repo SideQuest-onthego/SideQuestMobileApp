@@ -3,59 +3,59 @@ import { Image, StyleSheet, Text, View } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 
 function formatPrice(item: ActivityModel) {
-  const { min, max } = item.estimatedCost;
-  if (min === 0 && max === 0) return "Free";
-  if (min === max) return `$${min}`;
-  return `$${min}-$${max}`;
+   const { min, max } = item.estimatedCost;
+   if (min === 0 && max === 0) return "Free";
+   if (min === max) return `$${min}`;
+   return `$${min}-$${max}`;
 }
 
 export default function PlaceCard({ item }: { item: ActivityModel }) {
-  return (
-    <View style={styles.screen}>
-      <View style={styles.card}>
-        <Text
-          style={styles.title}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}
-        >
-          {item.name}
-        </Text>
+   return (
+      <View style={styles.screen}>
+         <View style={styles.card}>
+            <Text
+               style={styles.title}
+               numberOfLines={2}
+               adjustsFontSizeToFit
+               minimumFontScale={0.7}
+            >
+               {item.name}
+            </Text>
 
-        <View style={styles.imageWrap}>
-          <Image
-            source={{
-              uri:
-                item.links?.imageUrl ??
-                "https://picsum.photos/seed/sidequest/800/500",
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
-        </View>
+            <View style={styles.imageWrap}>
+               <Image
+                  source={{
+                     uri:
+                        item.links?.imageUrl ??
+                        "https://picsum.photos/seed/sidequest/800/500",
+                  }}
+                  style={styles.image}
+                  resizeMode="cover"
+               />
+            </View>
 
-        <View style={styles.infoRow}>
-          <View>
-            <Text style={styles.price}>{formatPrice(item)}</Text>
-            {item.location && (
-              <Text style={styles.location}>
-                {item.location.city}, {item.location.state}
-              </Text>
-            )}
-          </View>
+            <View style={styles.infoRow}>
+               <View>
+                  <Text style={styles.price}>{formatPrice(item)}</Text>
+                  {item.location && (
+                     <Text style={styles.location}>
+                        {item.location.city}, {item.location.state}
+                     </Text>
+                  )}
+               </View>
 
-          {item.category && (
-            <Text style={styles.category}>{item.category}</Text>
-          )}
-        </View>
+               {item.category && (
+                  <Text style={styles.category}>{item.category}</Text>
+               )}
+            </View>
 
-        <View style={styles.buttonRow}>
-          <Text style={styles.button}>Dislike</Text>
-          <Text style={styles.button}>Like</Text>
-        </View>
+            <View style={styles.buttonRow}>
+               <Text style={styles.button}>Dislike</Text>
+               <Text style={styles.button}>Like</Text>
+            </View>
+         </View>
       </View>
-    </View>
-  );
+   );
 }
 
 const styles = StyleSheet.create({
