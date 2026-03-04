@@ -1,14 +1,30 @@
-import { Stack } from "expo-router";
-import React from "react";
-import { SavedPlacesProvider } from "./SavedPlacesContext";
+import "../global.css";
+import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import 'react-native-reanimated';
 
+import { useColorScheme } from '@/hooks/use-color-scheme';
 
-// Root layout wraps entire app
+SplashScreen.preventAutoHideAsync();
+
 export default function RootLayout() {
+  const colorScheme = useColorScheme();
+
+  useEffect(() => {
+    SplashScreen.hideAsync();
+  }, []);
+
   return (
-    // Wrap whole navigation system with SavedPlacesProvider
-    <SavedPlacesProvider>
-      <Stack screenOptions={{ headerShown: false }} />
-    </SavedPlacesProvider>
+    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      </Stack>
+      <StatusBar style="auto" />
+    </ThemeProvider>
   );
 }
