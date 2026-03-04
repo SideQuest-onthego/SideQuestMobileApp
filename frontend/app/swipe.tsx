@@ -1,12 +1,9 @@
-import React from "react";
+import { useLocalSearchParams } from "expo-router";
 import { View } from "react-native";
 import SwipeDeck from "../components/SwipeDeck";
 import { places } from "../data/places";
-import { useLocalSearchParams } from "expo-router";
-import { useSavedPlaces } from "./SavedPlacesContext";
 
 export default function SwipeScreen() {
-  // Get budget passed from previous screen (URL param)
   const { budget } = useLocalSearchParams();
   const numericBudget = Number(budget);
 
@@ -27,10 +24,7 @@ export default function SwipeScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      <SwipeDeck
-        data={filteredPlaces} // send filtered data
-        onSwipeRight={(place) => savePlace(place)} // save if swiped right
-      />
+      <SwipeDeck data={filteredPlaces} />
     </View>
   );
 }
