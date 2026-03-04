@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 16,
     borderWidth: 2,
-    borderColor: "black",
+    borderColor: "rgb(0,0,0)",
   },
 
   imageWrap: {
