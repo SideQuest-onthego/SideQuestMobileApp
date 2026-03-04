@@ -59,71 +59,71 @@ export default function PlaceCard({ item }: { item: ActivityModel }) {
 }
 
 const styles = StyleSheet.create({
-   screen: {
-      flex: 1,
-      justifyContent: "center",
-      alignItems: "center",
-   },
+  screen: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 
-   card: {
-      backgroundColor: "#FFFFFF",
-      width: "90%",
-      borderRadius: 28,
-      padding: 16,
-      borderWidth: 2,
-      borderColor: "black",
-   },
+  card: {
+    backgroundColor: "#FFFFFF",
+    width: "90%",
+    borderRadius: 28,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: "rgb(0,0,0)",
+  },
 
-   imageWrap: {
-      width: "100%",
-      height: 380,
-      borderRadius: 24,
-      overflow: "hidden",
-   },
+  imageWrap: {
+    width: "100%",
+    height: 380,
+    borderRadius: 24,
+    overflow: "hidden",
+  },
 
-   title: {
-      marginTop: 12,
-      fontSize: 24,
-      fontWeight: "800",
-   },
+  title: {
+    marginTop: 12,
+    fontSize: 24,
+    fontWeight: "800",
+  },
 
-   image: {
-      width: "100%",
-      height: "100%",
-   },
+  image: {
+    width: "100%",
+    height: "100%",
+  },
 
-   infoRow: {
-      flexDirection: "row",
-      justifyContent: "space-between",
-      marginTop: 10,
-   },
+  infoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
 
-   price: {
-      fontSize: 18,
-      fontWeight: "700",
-   },
+  price: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
 
-   location: {
-      fontSize: 14,
-      opacity: 0.7,
-   },
+  location: {
+    fontSize: 14,
+    opacity: 0.7,
+  },
 
-   category: {
-      fontWeight: "700",
-   },
+  category: {
+    fontWeight: "700",
+  },
 
-   buttonRow: {
-      flexDirection: "row",
-      gap: 12,
-      marginTop: 16,
-   },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+  },
 
-   button: {
-      flex: 1,
-      textAlign: "center",
-      paddingVertical: 12,
-      borderWidth: 2,
-      borderRadius: 12,
-      fontWeight: "800",
-   },
+  button: {
+    flex: 1,
+    textAlign: "center",
+    paddingVertical: 12,
+    borderWidth: 2,
+    borderRadius: 12,
+    fontWeight: "800",
+  },
 });
