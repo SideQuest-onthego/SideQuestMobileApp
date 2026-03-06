@@ -117,6 +117,7 @@ export async function fetchNearbyManhattanPlaces(
       "Missing EXPO_PUBLIC_GOOGLE_PLACES_API_KEY. Add it to your frontend/.env"
     );
   }
+  const safeApiKey: string = apiKey;
 
   const fieldMask = [
     "places.id",
@@ -133,41 +134,61 @@ export async function fetchNearbyManhattanPlaces(
     "places.googleMapsUri",
   ].join(",");
 
-  const response = await fetch(
-    "https://places.googleapis.com/v1/places:searchNearby",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": fieldMask,
-      },
-      body: JSON.stringify({
-        maxResultCount: 20,
-        includedTypes: ["tourist_attraction", "museum", "park", "restaurant"],
-        rankPreference: "POPULARITY",
-        locationRestriction: {
-          circle: {
-            center: {
-              latitude: MANHATTAN_COORDS.lat,
-              longitude: MANHATTAN_COORDS.lng,
-            },
-            radius: radiusMeters,
-          },
-        },
-      }),
-    }
-  );
+  const typeGroups = [
+    ["tourist_attraction"],
+    ["museum"],
+    ["park"],
+    ["restaurant"],
+  ];
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Google Places request failed: ${response.status} ${errorBody}`);
+  async function searchByTypes(includedTypes: string[]) {
+    const response = await fetch(
+      "https://places.googleapis.com/v1/places:searchNearby",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": safeApiKey,
+          "X-Goog-FieldMask": fieldMask,
+        },
+        body: JSON.stringify({
+          maxResultCount: 20,
+          includedTypes,
+          rankPreference: "POPULARITY",
+          locationRestriction: {
+            circle: {
+              center: {
+                latitude: MANHATTAN_COORDS.lat,
+                longitude: MANHATTAN_COORDS.lng,
+              },
+              radius: radiusMeters,
+            },
+          },
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Google Places request failed: ${response.status} ${errorBody}`);
+    }
+
+    const json = (await response.json()) as NearbySearchResponse;
+    return (json.places ?? [])
+      .map(placeToActivity)
+      .filter((place): place is ActivityModel => Boolean(place));
   }
 
-  const json = (await response.json()) as NearbySearchResponse;
-  const mapped = (json.places ?? [])
-    .map(placeToActivity)
-    .filter((place): place is ActivityModel => Boolean(place));
+  const groupedResults = await Promise.all(typeGroups.map(searchByTypes));
+  const deduped = new Map<string, ActivityModel>();
 
-  return mapped;
+  for (const group of groupedResults) {
+    for (const place of group) {
+      if (!deduped.has(place.id)) {
+        deduped.set(place.id, place);
+      }
+    }
+  }
+
+  return Array.from(deduped.values());
 }

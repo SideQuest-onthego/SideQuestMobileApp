@@ -4,6 +4,8 @@ import { useLocalSearchParams } from "expo-router";
 
 import SwipeDeck from "../components/SwipeDeck";
 import { places } from "../data/places";
+import { fetchNearbyManhattanPlaces } from "../services/googlePlaces";
+import type { ActivityModel } from "../types/sidequest-models";
 
 type Place = (typeof places)[number];
 
@@ -27,7 +29,17 @@ export default function SwipeScreen() {
   //Render the SwipeDeck using only the filtered list of places
   return (
     <View style={{ flex: 1 }}>
-      <SwipeDeck data={filteredPlaces} />
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" />
+          <Text style={styles.loadingText}>Loading places for your budget...</Text>
+        </View>
+      ) : (
+        <>
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <SwipeDeck data={filteredPlaces} />
+        </>
+      )}
     </View>
   );
 }
