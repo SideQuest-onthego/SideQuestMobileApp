@@ -49,7 +49,7 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
   const bgOpacity = pan.x.interpolate({
     inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
     //Center (no swipe) is invisible, opacity increases as you swipe left/right
-    outputRange: [0.4, 0, 0.4],
+    outputRange: [0.6, 0, 0.6],
     extrapolate: "clamp",
   });
 
@@ -187,7 +187,7 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#a8c1fa",
+    backgroundColor: "#dbfef7",
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
