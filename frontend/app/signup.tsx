@@ -32,8 +32,7 @@ export default function SignUpScreen() {
         {/* Card */}
         <View style={styles.card}>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join the quest today</Text>
-
+          
           {/* Name */}
           <Text style={styles.label}>Name</Text>
           <TextInput
@@ -87,12 +86,12 @@ export default function SignUpScreen() {
     </KeyboardAvoidingView>
   );
 }
-
+//below is preety much all styling
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#2D6A4F",
-  },
+  flex: 1,
+  backgroundColor: "#102C26",
+},
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
@@ -115,14 +114,16 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    padding: 28,
-    shadowColor: "#000",
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
-    elevation: 5,
-  },
+  backgroundColor: "#fff",
+  borderRadius: 24,
+  borderWidth: 1.5,
+  borderColor: "#000",
+  padding: 28,
+  shadowColor: "#000",
+  shadowOpacity: 0.15,
+  shadowRadius: 10,
+  elevation: 5,
+},
   title: {
     fontSize: 26,
     fontWeight: "800",
@@ -149,13 +150,15 @@ const styles = StyleSheet.create({
     color: "#333",
   },
   button: {
-    backgroundColor: "#2D6A4F",
-    borderRadius: 14,
-    padding: 16,
-    alignItems: "center",
-    marginTop: 28,
-    marginBottom: 16,
-  },
+  backgroundColor: "#102C26",
+  borderRadius: 14,
+  borderWidth: 1.5,
+  borderColor: "#000",
+  padding: 16,
+  alignItems: "center",
+  marginTop: 28,
+  marginBottom: 16,
+},
   buttonText: {
     color: "#fff",
     fontSize: 16,
@@ -168,9 +171,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   loginLink: {
-    color: "#2D6A4F",
-    fontWeight: "700",
-  },
+  color: "#2D6A4F",
+  fontWeight: "700",
+},
 
-  
 });

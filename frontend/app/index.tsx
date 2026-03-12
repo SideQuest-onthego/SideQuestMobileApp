@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react'; //need to change the logo 
 import { View, Text, StyleSheet, ImageBackground, Pressable, StatusBar, Animated, Dimensions } from 'react-native';
 import { Link } from 'expo-router';
 

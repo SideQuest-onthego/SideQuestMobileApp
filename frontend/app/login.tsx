@@ -31,7 +31,6 @@ export default function LoginScreen() {
         {/* Card */}
         <View style={styles.card}>
           <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Log in to continue your quest</Text>
 
           {/* Email */}
           <Text style={styles.label}>Email</Text>
@@ -81,12 +80,12 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
-
+//below this is preety much all styling 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: "#2D6A4F",
-  },
+  flex: 1,
+  backgroundColor: "#102C26",
+},
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
@@ -153,7 +152,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   button: {
-    backgroundColor: "#2D6A4F",
+    backgroundColor: "#102C26",
     borderRadius: 14,
     padding: 16,
     alignItems: "center",
