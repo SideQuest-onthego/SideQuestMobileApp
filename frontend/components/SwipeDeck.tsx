@@ -31,11 +31,42 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
     outputRange: ["-15deg", "0deg", "15deg"],
   });
 
+  //Opacity for the "LIKE" badge increases as the card is dragged to the right
+  const likeOpacity = pan.x.interpolate({
+    inputRange: [0, SWIPE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+
+  //Opacity for the "NOPE" badge increases as the card is dragged to the left
+  const nopeOpacity = pan.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0],
+    outputRange: [1, 0],
+    extrapolate: "clamp",
+  });
+
+  //Controls opacity of the background wash during swiping motion
+  const bgOpacity = pan.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
+    //Center (no swipe) is invisible, opacity increases as you swipe left/right
+    outputRange: [0.6, 0, 0.6],
+    extrapolate: "clamp",
+  });
+
+  //Changes the background color depending on swipe direction
+  const bgColor = pan.x.interpolate({
+    inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
+    //Swipe left = red (nope), swipe right = green (like), no swipe = no background
+    outputRange: ["rgba(255,0,0,1)", "rgba(0,0,0,1)", "rgba(0,200,0,1)"],
+    extrapolate: "clamp",
+  });
+
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) =>
       //Swipe is activated after the card has been mooved by at least 5 pixels in either direction
       Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
 
+    //Updates the card position as the user drags it by updating the pan.x/pan.y animated values
     onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
       useNativeDriver: false,
     }),
@@ -100,6 +131,16 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
   //Putting it all together
   return (
     <View style={styles.container}>
+      {/*Swipe background wash*/}
+      {/*The red and green background that appears as you swipe left and right*/}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: bgColor, opacity: bgOpacity },
+        ]}
+      />
+
       {showTutorial && (
         //The tutorial message
         <View style={styles.tutorialOverlay} pointerEvents="none">
@@ -123,6 +164,21 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
         ]}
         {...panResponder.panHandlers}
       >
+        {/* Swipe badges */}
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}
+        >
+          <Text style={styles.badgeText}>LIKE</Text>
+        </Animated.View>
+
+        <Animated.View
+          pointerEvents="none"
+          style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}
+        >
+          <Text style={styles.badgeText}>NOPE</Text>
+        </Animated.View>
+
         <PlaceCard item={current} />
       </Animated.View>
     </View>
@@ -131,14 +187,14 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#CFDAF1",
+    backgroundColor: "#dbfef7",
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
   },
 
   endScreen: {
-    color: "#0F672C",
+    color: "black",
     fontSize: 20,
     fontWeight: "700",
   },
@@ -179,5 +235,35 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     textAlign: "center",
     marginTop: 6,
+  },
+
+  badge: {
+    position: "absolute",
+    top: 40,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 3,
+    zIndex: 50,
+  },
+
+  likeBadge: {
+    left: 30,
+    borderColor: "rgba(0,160,0,1)",
+    backgroundColor: "rgba(0,160,0,0.12)",
+    transform: [{ rotate: "-12deg" }],
+  },
+
+  nopeBadge: {
+    right: 30,
+    borderColor: "rgba(220,0,0,1)",
+    backgroundColor: "rgba(220,0,0,0.12)",
+    transform: [{ rotate: "12deg" }],
+  },
+
+  badgeText: {
+    fontSize: 22,
+    fontWeight: "900",
+    letterSpacing: 1,
   },
 });

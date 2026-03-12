@@ -66,6 +66,9 @@ const Particle = ({ index }: { index: number }) => {
 };
 
 const App = () => {
+  const router = useRouter();
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
   // Logo fade in
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoTranslateY = useRef(new Animated.Value(30)).current;
@@ -77,7 +80,21 @@ const App = () => {
   // Button pulse
   const buttonScale = useRef(new Animated.Value(1)).current;
 
+  // Check if user is already logged in
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        router.replace('/(tabs)');
+      } else {
+        setCheckingAuth(false);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (checkingAuth) return;
+
     // Logo fade in
     Animated.parallel([
       Animated.timing(logoOpacity, {
@@ -125,7 +142,15 @@ const App = () => {
     };
 
     setTimeout(() => pulse(), 1500);
-  }, []);
+  }, [checkingAuth]);
+
+  if (checkingAuth) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#95D5B2" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -193,6 +218,12 @@ const App = () => {
 export default App;
 
 const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#1a3d2f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: '#1a3d2f',

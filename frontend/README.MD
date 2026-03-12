@@ -25,6 +25,31 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Google Places setup (live cards)
+
+1. Create a `.env` file in `frontend/`:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Add your Places API key in `.env`:
+
+   ```bash
+   EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=YOUR_KEY
+   ```
+
+3. In Google Cloud, enable:
+- `Places API (New)`
+
+4. Restart Expo:
+
+   ```bash
+   npx expo start -c
+   ```
+
+The Home tab now requests nearby places within a 10-mile radius of Manhattan (`40.7831, -73.9712`). If the key is missing or the request fails, the app falls back to local mock card data.
+
 ## Get a fresh project
 
 When you're ready, run:
