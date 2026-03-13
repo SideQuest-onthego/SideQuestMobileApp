@@ -1,3 +1,4 @@
+// frontend/app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
 import React from "react";
 
@@ -7,70 +8,65 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function TabLayout() {
-   const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme();
 
-   return (
-      <Tabs
-         screenOptions={{
-            tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-            headerShown: false,
-            tabBarButton: HapticTab,
-         }}
-      >
-         <Tabs.Screen
-            name="index"
-            options={{
-               title: "Home",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol size={28} name="house.fill" color={color} />
-               ),
-            }}
-         />
-         <Tabs.Screen
-            name="map"
-            options={{
-               title: "Map",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol size={28} name="map" color={color} />
-               ),
-            }}
-         />
-         <Tabs.Screen
-            name="explore"
-            options={{
-               title: "Boiler Tab",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol size={28} name="paperplane.fill" color={color} />
-               ),
-            }}
-         />
+  return (
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+        headerShown: false,
+        tabBarButton: HapticTab,
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="house.fill" color={color} />
+          ),
+        }}
+      />
 
-         <Tabs.Screen
-            name="saved"
-            options={{
-               title: "Saved Places",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol
-                     size={28}
-                     name="mappin.circle.fill"
-                     color={color}
-                  />
-               ),
-            }}
-         />
-         <Tabs.Screen
-            name="account"
-            options={{
-               title: "Account",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol
-                     size={28}
-                     name="person.crop.circle.fill"
-                     color={color}
-                  />
-               ),
-            }}
-         />
-      </Tabs>
-   );
+      <Tabs.Screen
+        name="map"
+        options={{
+          title: "Map",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="map" color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="explore"
+        options={{
+          title: "Boiler Tab",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="paperplane.fill" color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Saved Places",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="mappin.circle.fill" color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="person.crop.circle.fill" color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
 }

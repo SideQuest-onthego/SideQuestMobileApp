@@ -1,6 +1,10 @@
 import { useEffect, useRef } from 'react'; //need to change the logo 
-import { View, Text, StyleSheet, ImageBackground, Pressable, StatusBar, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ImageBackground, Pressable, StatusBar, Animated, Dimensions,ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../FirebaseConfig'; 
 
 const first_page = require('@/assets/images/first_page.png');
 const { width, height } = Dimensions.get('window');

@@ -1,3 +1,4 @@
+// frontend/components/SwipeDeck.tsx
 import React, { useRef, useState } from "react";
 import {
   Animated,
@@ -9,81 +10,69 @@ import {
 } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
-
-type Props = {
-  data: ActivityModel[];
-  onSwipeLeft?: (item: ActivityModel) => void;
-  onSwipeRight?: (item: ActivityModel) => void;
-};
+import { useSavedPlaces } from "../app/SavedPlacesContext"; // ✅ import context
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
 const SWIPE_OUT_DURATION = 180;
 
-export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
+type Props = {
+  data: ActivityModel[];
+  onSwipeLeft?: (item: ActivityModel) => void;
+};
+
+export default function SwipeDeck({ data, onSwipeLeft }: Props) {
   const [index, setIndex] = useState(0);
   const [showTutorial, setShowTutorial] = useState(true);
   const pan = useRef(new Animated.ValueXY()).current;
 
-  //The card rotates slightly as it is being dragged
+  const { addPlace } = useSavedPlaces(); // ✅ hook to save places
+
   const rotate = pan.x.interpolate({
-    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH], //left, center, right
+    inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
     outputRange: ["-15deg", "0deg", "15deg"],
   });
 
-  //Opacity for the "LIKE" badge increases as the card is dragged to the right
   const likeOpacity = pan.x.interpolate({
     inputRange: [0, SWIPE_THRESHOLD],
     outputRange: [0, 1],
     extrapolate: "clamp",
   });
 
-  //Opacity for the "NOPE" badge increases as the card is dragged to the left
   const nopeOpacity = pan.x.interpolate({
     inputRange: [-SWIPE_THRESHOLD, 0],
     outputRange: [1, 0],
     extrapolate: "clamp",
   });
 
-  //Controls opacity of the background wash during swiping motion
   const bgOpacity = pan.x.interpolate({
     inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
-    //Center (no swipe) is invisible, opacity increases as you swipe left/right
     outputRange: [0.6, 0, 0.6],
     extrapolate: "clamp",
   });
 
-  //Changes the background color depending on swipe direction
   const bgColor = pan.x.interpolate({
     inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
-    //Swipe left = red (nope), swipe right = green (like), no swipe = no background
     outputRange: ["rgba(255,0,0,1)", "rgba(0,0,0,1)", "rgba(0,200,0,1)"],
     extrapolate: "clamp",
   });
 
   const panResponder = PanResponder.create({
     onMoveShouldSetPanResponder: (_, g) =>
-      //Swipe is activated after the card has been mooved by at least 5 pixels in either direction
       Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
 
-    //Updates the card position as the user drags it by updating the pan.x/pan.y animated values
     onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
       useNativeDriver: false,
     }),
 
     onPanResponderRelease: (_, g) => {
-      //The tutorial message dissapears after the first swipe
       setShowTutorial(false);
-      //Depending on the distance the card has been dragged,
-      //we either intiate a swipe or reset the card to its original position
       if (g.dx > SWIPE_THRESHOLD) forceSwipe("right");
       else if (g.dx < -SWIPE_THRESHOLD) forceSwipe("left");
       else resetPosition();
     },
   });
 
-  //Animates the card out of the screen depeding on the direction of the swipe
-  //Then calls the onSwipeComplete function to move on to the next card or show the end screen
   function forceSwipe(dir: "left" | "right") {
     const x = dir === "right" ? SCREEN_WIDTH : -SCREEN_WIDTH;
     Animated.timing(pan, {
@@ -94,30 +83,27 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
   }
 
   function onSwipeComplete(dir: "left" | "right") {
-    //The card that has just been swiped
     const item = data[index];
-    //Make sure the item exists
-    if (item) {
-      //Checking the direction of the swipe (useful for the future SAVED LIST feature)
-      if (dir === "right") onSwipeRight?.(item);
-      else onSwipeLeft?.(item);
+    if (!item) return;
+
+    if (dir === "right") {
+      addPlace(item); // ✅ automatically save right-swiped place
+    } else {
+      onSwipeLeft?.(item);
     }
 
-    //Reset the position of the card and move on to the next one
     pan.setValue({ x: 0, y: 0 });
     setIndex((prev) => prev + 1);
   }
-  //If the card is not swiped far enough, it goes back to its original position
+
   function resetPosition() {
     Animated.spring(pan, {
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
-      //Increase to make the card snap back faster and vice versa
       friction: 5,
     }).start();
   }
 
-  //If there is no more card left to show, display a message
   if (index >= data.length) {
     return (
       <View style={styles.container}>
@@ -128,21 +114,14 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
 
   const current = data[index];
 
-  //Putting it all together
   return (
     <View style={styles.container}>
-      {/*Swipe background wash*/}
-      {/*The red and green background that appears as you swipe left and right*/}
       <Animated.View
         pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFillObject,
-          { backgroundColor: bgColor, opacity: bgOpacity },
-        ]}
+        style={[StyleSheet.absoluteFillObject, { backgroundColor: bgColor, opacity: bgOpacity }]}
       />
 
       {showTutorial && (
-        //The tutorial message
         <View style={styles.tutorialOverlay} pointerEvents="none">
           <View style={styles.tutorialCard}>
             <Text style={styles.tutorialTitle}>Quick tip</Text>
@@ -151,31 +130,16 @@ export default function SwipeDeck({ data, onSwipeLeft, onSwipeRight }: Props) {
           </View>
         </View>
       )}
+
       <Animated.View
-        style={[
-          styles.cardLayer,
-          {
-            transform: [
-              { translateX: pan.x },
-              { translateY: pan.y },
-              { rotate },
-            ],
-          },
-        ]}
+        style={[styles.cardLayer, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
         {...panResponder.panHandlers}
       >
-        {/* Swipe badges */}
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}
-        >
+        <Animated.View style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}>
           <Text style={styles.badgeText}>LIKE</Text>
         </Animated.View>
 
-        <Animated.View
-          pointerEvents="none"
-          style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}
-        >
+        <Animated.View style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}>
           <Text style={styles.badgeText}>NOPE</Text>
         </Animated.View>
 
