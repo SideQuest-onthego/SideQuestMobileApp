@@ -1,197 +1,95 @@
-// frontend/app/swipe.tsx
-
-// Import React and hooks used for state, effects, and memoization
-import React, { useEffect, useMemo, useState } from "react";
-
-// Import Expo Router hook used to read parameters passed through navigation
+import React, { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 
-// Import React Native UI components
-import { View, ActivityIndicator, Text, StyleSheet } from "react-native";
-
-// Import the custom swipe card deck component
 import SwipeDeck from "../components/SwipeDeck";
-
-// Import function that retrieves nearby places from the Google Places service
+import { places } from "../data/places";
 import { fetchNearbyManhattanPlaces } from "../services/googlePlaces";
-
-// Import the type definition for activity/place objects
 import type { ActivityModel } from "../types/sidequest-models";
 
-// Import the saved places context hook so places can be stored globally
-import { useSavedPlaces } from "../app/SavedPlacesContext";
+//Returns the minimum estimated cost of a place
+//So a range like 17-30 would return 17
+function getPlaceCost(place: ActivityModel): number {
+  return place.estimatedCost?.min ?? 0;
+}
 
-
-// Main screen component for the swipe feature
 export default function SwipeScreen() {
-
-  // Read query parameters passed through the router (ex: budget from previous screen)
-  const { budget } = useLocalSearchParams();
-
-  // Convert the budget parameter to a number
-  const numericBudget = Number(budget);
-
-  // State to store the list of places retrieved from the API
-  const [data, setData] = useState<ActivityModel[]>([]);
-
-  // State to track whether data is still loading
+  const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);
-
-  // State to store any error message that may occur while loading data
   const [error, setError] = useState<string | null>(null);
 
-  // Access functions and data from the SavedPlaces context
-  const { addPlace, savedPlaces } = useSavedPlaces();
-
-
-  // --------------------------------------------------------
-  // Fetch nearby places when the screen first loads
-  // --------------------------------------------------------
   useEffect(() => {
-
-    // Track whether the component is still mounted
-    // Prevents state updates if the user leaves the screen early
     let mounted = true;
 
-    // Async function to load places from Google Places API
-    const loadPlaces = async () => {
+    async function loadPlaces() {
       try {
-
-        // Fetch nearby Manhattan places
-        const places = await fetchNearbyManhattanPlaces();
-
-        // If component was unmounted, stop execution
+        const livePlaces = await fetchNearbyManhattanPlaces();
         if (!mounted) return;
-
-        // Store the retrieved places in state
-        setData(places);
-
+        if (livePlaces.length > 0) {
+          setData(livePlaces);
+        }
       } catch (e) {
-
-        // If component was unmounted, stop execution
         if (!mounted) return;
-
-        // Save error message if fetching fails
-        setError(e instanceof Error ? e.message : "Failed to load places");
-
+        const message = e instanceof Error ? e.message : "Failed to load places";
+        setError(message);
       } finally {
-
-        // Stop loading indicator once request finishes
         if (mounted) setLoading(false);
       }
-    };
+    }
 
-    // Call the function to load places
     loadPlaces();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-    // Cleanup function runs if the component unmounts
-    return () => { mounted = false; };
-
-  }, []); // Runs only once when component first mounts
-
-
-  // --------------------------------------------------------
-  // Determine the effective budget for filtering places
-  // --------------------------------------------------------
-  const effectiveBudget =
-    Number.isFinite(numericBudget) && numericBudget > 0
-      ? numericBudget // Use user provided budget if valid
-      : Number.POSITIVE_INFINITY; // Otherwise allow unlimited budget
-
-
-  // --------------------------------------------------------
-  // Filter places based on the user's budget
-  // --------------------------------------------------------
-  const filteredPlaces = useMemo(
-
-    // Only include places whose minimum estimated cost
-    // is within the allowed budget
-    () => data.filter(place => place.estimatedCost.min <= effectiveBudget),
-
-    // Recalculate only if data or budget changes
-    [data, effectiveBudget]
+  //Read the budget from the router parameters
+  const { budget } = useLocalSearchParams();
+  //Convert the budget to a number (0 if it's missing or invalid)
+  const numericBudget = Number(budget) || 0;
+  //Filter the places to only include those that are within the user's budget
+  //Starting from the minimum cost of the place
+  const filteredPlaces = data.filter(
+    (place) => getPlaceCost(place) <= numericBudget,
   );
 
-
-  // --------------------------------------------------------
-  // Render the swipe screen UI
-  // --------------------------------------------------------
+  //Render the SwipeDeck using only the filtered list of places
   return (
-
-    // Main container view
-    <View style={{ flex: 1 }}>
-
-      {/* If data is still loading, show loading spinner */}
+    <View style={styles.container}>
       {loading ? (
-
         <View style={styles.centered}>
-
-          {/* Spinner animation */}
           <ActivityIndicator size="large" />
-
-          {/* Loading message */}
-          <Text style={styles.loadingText}>
-            Loading places for your budget...
-          </Text>
-
+          <Text style={styles.loadingText}>Loading places for your budget...</Text>
         </View>
-
       ) : (
-
         <>
-          {/* Show error message if something went wrong */}
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
-          {/* Swipe deck component that displays cards for each place */}
-          <SwipeDeck
-
-            // Pass filtered places to the swipe deck
-            data={filteredPlaces}
-
-            // When the user swipes right (likes a place)
-            onSwipeRight={(place) => {
-
-              // Only add the place if it hasn't already been saved
-              if (!savedPlaces.some(p => p.id === place.id)) {
-                addPlace(place);
-              }
-
-            }}
-          />
+          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          <SwipeDeck data={filteredPlaces} />
         </>
       )}
-
     </View>
   );
 }
 
-
-// --------------------------------------------------------
-// Styles used for the screen
-// --------------------------------------------------------
 const styles = StyleSheet.create({
-
-  // Centered layout used while loading
+  container: {
+    flex: 1,
+  },
   centered: {
     flex: 1,
-    alignItems: "center",   // center horizontally
-    justifyContent: "center", // center vertically
-    gap: 10,                // space between elements
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
     paddingHorizontal: 16,
   },
-
-  // Text style for loading message
   loadingText: {
     fontSize: 14,
   },
-
-  // Text style for error messages
   errorText: {
     textAlign: "center",
-    color: "#8A1C1C", // dark red
+    color: "#8A1C1C",
     fontSize: 12,
     paddingHorizontal: 12,
     paddingTop: 8,
   },
-
 });
