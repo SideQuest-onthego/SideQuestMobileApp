@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { type Href, useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 
@@ -8,13 +8,14 @@ import { auth } from "@/FirebaseConfig";
 type LogoutButtonProps = {
   label?: string;
   redirectTo?: Href;
+  size?: "default" | "compact";
   onLoggedOut?: () => void | Promise<void>;
 };
 
-// Portable logout button
 export function LogoutButton({
   label = "Log Out",
   redirectTo = "/",
+  size = "default",
   onLoggedOut,
 }: LogoutButtonProps) {
   const router = useRouter();
@@ -41,13 +42,59 @@ export function LogoutButton({
   };
 
   return (
-    <View>
-      <Button
-        title={isSigningOut ? "Logging Out..." : label}
+    <View style={size === "compact" ? styles.compactContainer : undefined}>
+      <Pressable
+        style={[
+          styles.button,
+          size === "compact" ? styles.compactButton : styles.defaultButton,
+          isSigningOut && styles.disabledButton,
+        ]}
         onPress={handleLogout}
         disabled={isSigningOut}
-        color="#1F6F5F"
-      />
+      >
+        <Text
+          style={[
+            styles.label,
+            size === "compact" ? styles.compactLabel : styles.defaultLabel,
+          ]}
+        >
+          {isSigningOut ? "Logging Out..." : label}
+        </Text>
+      </Pressable>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  button: {
+    backgroundColor: "#102C26",
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  defaultButton: {
+    minWidth: 110,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  compactButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  disabledButton: {
+    opacity: 0.7,
+  },
+  label: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+  },
+  defaultLabel: {
+    fontSize: 14,
+  },
+  compactLabel: {
+    fontSize: 12,
+  },
+  compactContainer: {
+    alignSelf: "flex-end",
+  },
+});
