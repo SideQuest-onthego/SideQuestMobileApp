@@ -1,3 +1,4 @@
+// frontend/app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
 import React from "react";
 
@@ -7,7 +8,7 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 
 export default function TabLayout() {
-   const colorScheme = useColorScheme();
+  const colorScheme = useColorScheme();
 
    return (
       <Tabs
@@ -45,32 +46,25 @@ export default function TabLayout() {
             }}
          />
 
-         <Tabs.Screen
-            name="saved"
-            options={{
-               title: "Saved Places",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol
-                     size={28}
-                     name="mappin.circle.fill"
-                     color={color}
-                  />
-               ),
-            }}
-         />
-         <Tabs.Screen
-            name="account"
-            options={{
-               title: "Account",
-               tabBarIcon: ({ color }) => (
-                  <IconSymbol
-                     size={28}
-                     name="person.crop.circle.fill"
-                     color={color}
-                  />
-               ),
-            }}
-         />
-      </Tabs>
-   );
+      <Tabs.Screen
+        name="saved"
+        options={{
+          title: "Saved Places",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="mappin.circle.fill" color={color} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          title: "Account",
+          tabBarIcon: ({ color }) => (
+            <IconSymbol size={28} name="person.crop.circle.fill" color={color} />
+          ),
+        }}
+      />
+    </Tabs>
+  );
 }

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ImageBackground, Pressable, StatusBar, Animated, Dimensions, ActivityIndicator } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react'; //need to change the logo 
+import { View, Text, StyleSheet, ImageBackground, Pressable, StatusBar, Animated, Dimensions,ActivityIndicator } from 'react-native';
+import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '@/FirebaseConfig';
+import { auth } from '../FirebaseConfig'; 
 
 // WELCOME PAGE
 
