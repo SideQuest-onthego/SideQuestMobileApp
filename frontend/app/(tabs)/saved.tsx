@@ -1,7 +1,7 @@
 // frontend/app/(tabs)/saved.tsx
 import React, { useEffect, useState } from "react";
 import { View, FlatList, StyleSheet, Text } from "react-native";
-import { useSavedPlaces } from "../SavedPlacesContext";
+import { useSavedPlaces } from "../../context/SavedPlacesContext";
 import PlaceCard from "../../components/PlaceCard";
 
 export default function SavedScreen() {

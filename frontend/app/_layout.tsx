@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SavedPlacesProvider } from './SavedPlacesContext'; // ✅ import provider
+import { SavedPlacesProvider } from '@/context/SavedPlacesContext';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,7 +20,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SavedPlacesProvider> {/* ✅ Wrap whole app */}
+    <SavedPlacesProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
