@@ -34,7 +34,7 @@ export default function TabTwoScreen() {
         onPress={() => router.push('/budget')}
 />
       <ThemedView style={styles.logoutContainer}>
-        <LogoutButton redirectTo="/welcome" />
+        <LogoutButton redirectTo="/" />
       </ThemedView>
       
     </ParallaxScrollView>

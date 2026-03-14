@@ -5,6 +5,8 @@ import { places } from "../../data/places";
 import type { ActivityModel } from "../../types/sidequest-models";
 import { fetchNearbyManhattanPlaces } from "../../services/googlePlaces";
 
+// HOME TAB PAGE
+
 export default function HomeScreen() {
   const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);

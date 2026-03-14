@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { Alert, Button, View } from "react-native";
-import { useRouter } from "expo-router";
+import { type Href, useRouter } from "expo-router";
 import { signOut } from "firebase/auth";
 
 import { auth } from "@/FirebaseConfig";
 
 type LogoutButtonProps = {
   label?: string;
-  redirectTo?: "/welcome" | `/${string}`;
+  redirectTo?: Href;
   onLoggedOut?: () => void | Promise<void>;
 };
 
+// Portable logout button
 export function LogoutButton({
   label = "Log Out",
-  redirectTo = "/welcome",
+  redirectTo = "/",
   onLoggedOut,
 }: LogoutButtonProps) {
   const router = useRouter();
