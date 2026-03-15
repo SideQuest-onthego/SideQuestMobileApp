@@ -30,7 +30,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace("/(tabs)");
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       const code = e?.code ?? "";
       if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/wrong-password") {

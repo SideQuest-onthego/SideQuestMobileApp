@@ -6,6 +6,8 @@ import { useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../FirebaseConfig'; 
 
+// WELCOME PAGE
+
 const first_page = require('@/assets/images/first_page.png');
 const { width, height } = Dimensions.get('window');
 const NUM_PARTICLES = 30;
@@ -88,8 +90,14 @@ const App = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        router.replace('/(tabs)');
+        console.log('Logged in user on app open:', {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+        });
+        router.replace('/(tabs)/home');
       } else {
+        console.log('Logged in user on app open: none');
         setCheckingAuth(false);
       }
     });

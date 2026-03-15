@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
-import { useSavedPlaces } from "../app/SavedPlacesContext"; // ✅ import context
+import { useSavedPlaces } from "../context/SavedPlacesContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
@@ -26,7 +26,7 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
   const [showTutorial, setShowTutorial] = useState(true);
   const pan = useRef(new Animated.ValueXY()).current;
 
-  const { addPlace } = useSavedPlaces(); // ✅ hook to save places
+  const { addPlace } = useSavedPlaces();
 
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -87,7 +87,7 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     if (!item) return;
 
     if (dir === "right") {
-      addPlace(item); // ✅ automatically save right-swiped place
+      addPlace(item);
     } else {
       onSwipeLeft?.(item);
     }

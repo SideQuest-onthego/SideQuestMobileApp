@@ -32,7 +32,7 @@ export default function SignUpScreen() {
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName: name });
-      router.replace("/(tabs)");
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       const code = e?.code ?? "";
       if (code === "auth/email-already-in-use") {
