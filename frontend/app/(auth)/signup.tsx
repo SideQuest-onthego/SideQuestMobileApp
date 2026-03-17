@@ -32,7 +32,7 @@ export default function SignUpScreen() {
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName: name });
-      router.replace("/(tabs)/home");
+      router.replace("/(first-time)/budget");
     } catch (e: any) {
       const code = e?.code ?? "";
       if (code === "auth/email-already-in-use") {
@@ -115,7 +115,7 @@ export default function SignUpScreen() {
           </TouchableOpacity>
 
           {/* Login redirect */}
-          <TouchableOpacity onPress={() => router.push("/login" as any)}>
+          <TouchableOpacity onPress={() => router.push("/(auth)/login" as any)}>
             <Text style={styles.loginText}>
               Already have an account?{" "}
               <Text style={styles.loginLink}>Log in</Text>

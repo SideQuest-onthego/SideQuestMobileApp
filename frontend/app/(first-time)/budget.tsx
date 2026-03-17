@@ -86,6 +86,13 @@ export default function BudgetScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.center}
       >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push("/(tabs)/explore")}
+        >
+          <Text style={styles.backButtonText}>Back to Explore</Text>
+        </TouchableOpacity>
+
         {/*The main card container containing all the content*/}
         <View style={styles.card}>
           <Text style={styles.title}>Set your budget</Text>
@@ -161,6 +168,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingHorizontal: 20,
+  },
+
+  backButton: {
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#111",
+    borderRadius: 999,
+  },
+
+  backButtonText: {
+    color: "#fff",
+    fontWeight: "700",
   },
 
   card: {

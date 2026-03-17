@@ -1,20 +1,58 @@
 import { auth } from "@/FirebaseConfig";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, updateProfile } from "firebase/auth";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import {
+   ActivityIndicator,
+   StyleSheet,
+   Text,
+   TextInput,
+   TouchableOpacity,
+   View,
+} from "react-native";
 
 export default function AccountProfileScreen() {
-   const [name, setName] = useState("Not set");
+   const [nameInput, setNameInput] = useState("");
    const [email, setEmail] = useState("Not available");
+   const [status, setStatus] = useState("");
+   const [saving, setSaving] = useState(false);
 
    useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
-         setName(user?.displayName?.trim() || "Not set");
+         const displayName = user?.displayName?.trim() || "";
+         setNameInput(displayName);
          setEmail(user?.email?.trim() || "Not available");
       });
 
       return unsubscribe;
    }, []);
+
+   async function handleSaveName() {
+      const trimmedName = nameInput.trim();
+
+      if (!trimmedName) {
+         setStatus("Please enter a valid name.");
+         return;
+      }
+
+      const user = auth.currentUser;
+      if (!user) {
+         setStatus("No signed-in user found.");
+         return;
+      }
+
+      setSaving(true);
+      setStatus("");
+
+      try {
+         await updateProfile(user, { displayName: trimmedName });
+         setNameInput(trimmedName);
+         setStatus("Name updated.");
+      } catch {
+         setStatus("Could not update your name. Please try again.");
+      } finally {
+         setSaving(false);
+      }
+   }
 
    return (
       <View style={styles.container}>
@@ -22,7 +60,26 @@ export default function AccountProfileScreen() {
 
          <View style={styles.infoCard}>
             <Text style={styles.label}>Name</Text>
-            <Text style={styles.value}>{name}</Text>
+            <TextInput
+               style={styles.input}
+               value={nameInput}
+               onChangeText={setNameInput}
+               placeholder="Enter your name"
+               placeholderTextColor="#9CA3AF"
+               autoCapitalize="words"
+            />
+            <TouchableOpacity
+               style={styles.button}
+               onPress={handleSaveName}
+               disabled={saving}
+            >
+               {saving ? (
+                  <ActivityIndicator color="#FFFFFF" />
+               ) : (
+                  <Text style={styles.buttonText}>Save Name</Text>
+               )}
+            </TouchableOpacity>
+            {status ? <Text style={styles.status}>{status}</Text> : null}
          </View>
 
          <View style={styles.infoCard}>
@@ -64,5 +121,32 @@ const styles = StyleSheet.create({
       fontSize: 18,
       color: "#111827",
       fontWeight: "500",
+   },
+   input: {
+      borderWidth: 1,
+      borderColor: "#D1D5DB",
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 12,
+      fontSize: 16,
+      color: "#111827",
+      backgroundColor: "#F9FAFB",
+   },
+   button: {
+      marginTop: 12,
+      backgroundColor: "#111827",
+      borderRadius: 10,
+      alignItems: "center",
+      paddingVertical: 12,
+   },
+   buttonText: {
+      color: "#FFFFFF",
+      fontSize: 15,
+      fontWeight: "700",
+   },
+   status: {
+      marginTop: 10,
+      fontSize: 13,
+      color: "#374151",
    },
 });

@@ -206,7 +206,7 @@ const App = () => {
 
         {/* Log In Button */}
         <Animated.View style={[styles.loginButtonWrapper, { transform: [{ scale: buttonScale }] }]}>
-          <Link href="/login" asChild>
+          <Link href="/(auth)/login" asChild>
             <Pressable style={styles.loginButton}>
               <Text style={styles.buttonText}>Log In</Text>
             </Pressable>
@@ -215,7 +215,7 @@ const App = () => {
 
         {/* Sign Up Button */}
         <Animated.View style={[styles.signUpButtonWrapper, { transform: [{ scale: buttonScale }] }]}>
-          <Link href="/signup" asChild>
+          <Link href="/(auth)/signup" asChild>
             <Pressable style={styles.signUpButton}>
               <Text style={styles.buttonText}>Sign Up</Text>
             </Pressable>

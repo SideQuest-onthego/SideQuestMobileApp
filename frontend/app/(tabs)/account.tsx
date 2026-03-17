@@ -2,9 +2,10 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LogoutButton } from "@/components/logout-button";
 import { auth } from "@/FirebaseConfig";
 import Slider from "@react-native-community/slider";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
-import React, { useEffect, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 //Options arrays for dietary restrictions and accessibility needs
@@ -96,6 +97,10 @@ export default function AccountScreen() {
    const [displayName, setDisplayName] = useState("your_name");
    const [state, dispatch] = useReducer(preferencesReducer, initialState);
 
+   const refreshDisplayName = useCallback(() => {
+      setDisplayName(auth.currentUser?.displayName?.trim() || "your_name");
+   }, []);
+
    useEffect(() => {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
          setDisplayName(user?.displayName?.trim() || "your_name");
@@ -103,6 +108,12 @@ export default function AccountScreen() {
 
       return unsubscribe;
    }, []);
+
+   useFocusEffect(
+      useCallback(() => {
+         refreshDisplayName();
+      }, [refreshDisplayName]),
+   );
 
    return (
       //ScrollView allows the content to be scrollable in case of smaller screen sizes or if user has many preferences selected
