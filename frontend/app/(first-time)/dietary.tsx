@@ -6,7 +6,7 @@ export default function DietaryScreen() {
   const router = useRouter();
 
   return (
-    <AuthBackground>
+    <AuthBackground variant="tl">
       <View style={styles.container}>
         <TouchableOpacity
           style={styles.backButton}

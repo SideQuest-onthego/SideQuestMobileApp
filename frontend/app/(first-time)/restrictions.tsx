@@ -6,7 +6,7 @@ export default function RestrictionsScreen() {
   const router = useRouter();
 
   return (
-    <AuthBackground>
+    <AuthBackground variant="br">
       <View style={styles.container}>
         <TouchableOpacity
           style={styles.backButton}

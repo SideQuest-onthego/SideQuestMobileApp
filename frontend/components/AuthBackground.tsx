@@ -4,14 +4,17 @@ import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
 
 type AuthBackgroundProps = {
   children: ReactNode;
+  variant?: "tl" | "br";
 };
 
-export default function AuthBackground({ children }: AuthBackgroundProps) {
+export default function AuthBackground({
+  children,
+  variant = "tl",
+}: AuthBackgroundProps) {
   const { width, height } = useWindowDimensions();
 
-  // Defining the path data for the top-left wave
-  // The wave adjusts based on the screen dimensions to maintain a consistent look across devices
-  const pathData = `
+  //Top-left curve
+  const topLeftPath = `
     M 0 0
     L ${width} 0
     C ${width * 0.72} ${height * 0.14} ${width * 0.83} ${height * 0.28} ${width * 0.58} ${height * 0.44}
@@ -21,9 +24,22 @@ export default function AuthBackground({ children }: AuthBackgroundProps) {
     Z
   `;
 
+  //Bottom-right = inverse of top-left
+  const bottomRightPath = `
+    M 0 0
+    H ${width}
+    V ${height}
+    H 0
+    Z
+
+    ${topLeftPath}
+  `;
+
+  const isTopLeft = variant === "tl";
+
   return (
     <View style={styles.screen}>
-      {/*Setting up the background gradient using SVG*/}
+      {/* SVG background curve */}
       <Svg
         width={width}
         height={height}
@@ -32,23 +48,32 @@ export default function AuthBackground({ children }: AuthBackgroundProps) {
         preserveAspectRatio="none"
       >
         <Defs>
-          {/*Defining the top-left gradient*/}
+          {/* Gradient for the background curve */}
           <LinearGradient
-            id="tl"
-            x1="0"
-            y1="0"
-            x2={width}
-            y2={height * 0.3}
+            id="grad"
+            x1={isTopLeft ? 0 : width}
+            y1={isTopLeft ? 0 : height}
+            x2={width * 0.5}
+            y2={height * 0.5}
             gradientUnits="userSpaceOnUse"
           >
-            {/*Defining the colors for the gradient*/}
             <Stop offset="0%" stopColor="#5a8bff" />
             <Stop offset="100%" stopColor="#a5ffc9" />
           </LinearGradient>
         </Defs>
 
-        {/*Drawing top-left wave */}
-        <Path d={pathData} fill="url(#tl)" opacity="0.95" />
+        {/* Render the appropriate background curve based on the variant */}
+        {isTopLeft ? (
+          <Path d={topLeftPath} fill="url(#grad)" opacity="0.95" />
+        ) : (
+          // Bottom-right curve is the inverse of top-left, so we can reuse the same path with a different fill
+          <Path
+            d={bottomRightPath}
+            fill="url(#grad)"
+            fillRule="evenodd"
+            opacity="0.95"
+          />
+        )}
       </Svg>
 
       {children}

@@ -41,7 +41,7 @@ export default function BudgetScreen() {
 
   //Putting it all together
   return (
-    <AuthBackground>
+    <AuthBackground variant="tl">
       {/*Making sure the keyboard doesn't cover the input on iOS*/}
       {/*Adding padding to shift the content up*/}
       <KeyboardAvoidingView
