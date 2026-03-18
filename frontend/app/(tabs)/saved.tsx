@@ -1,15 +1,10 @@
-// frontend/app/(tabs)/saved.tsx
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { View, FlatList, StyleSheet, Text } from "react-native";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
 import PlaceCard from "../../components/PlaceCard";
 
 export default function SavedScreen() {
   const { savedPlaces, removePlace } = useSavedPlaces();
-
-  // Force FlatList re-render when savedPlaces updates
-  const [renderTrigger, setRenderTrigger] = useState(0);
-  useEffect(() => setRenderTrigger(prev => prev + 1), [savedPlaces]);
 
   return (
     <View style={styles.container}>
@@ -19,15 +14,12 @@ export default function SavedScreen() {
         <FlatList
           data={savedPlaces}
           keyExtractor={(item) => item.id}
-          extraData={renderTrigger} // ensures re-render
           renderItem={({ item }) => (
-            <PlaceCard
-              item={item}
-              showRemove
-              onRemove={(id) => removePlace(id)}
-            />
+            <PlaceCard item={item} showRemove onRemove={removePlace} />
           )}
           contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={{ height: 6 }} />} // smaller spacing
+          ListHeaderComponent={<View style={{ height: 60 }} />} // push cards lower
         />
       )}
     </View>
@@ -37,8 +29,7 @@ export default function SavedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 12,
-    backgroundColor: "#CFDAF1",
+    backgroundColor: "#DBFEF7", // updated background
   },
   emptyText: {
     textAlign: "center",
@@ -47,6 +38,7 @@ const styles = StyleSheet.create({
     color: "#555",
   },
   listContent: {
+    paddingHorizontal: 12,
     paddingBottom: 20,
   },
 });
