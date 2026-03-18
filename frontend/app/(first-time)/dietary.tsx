@@ -1,45 +1,47 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import AuthBackground from "@/components/AuthBackground";
 
 export default function DietaryScreen() {
-   const router = useRouter();
+  const router = useRouter();
 
-   return (
+  return (
+    <AuthBackground>
       <View style={styles.container}>
-         <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.push("/(tabs)/explore")}
-         >
-            <Text style={styles.backButtonText}>Back to Explore</Text>
-         </TouchableOpacity>
-         <Text style={styles.title}>DIETARY SCREEN. ARMAN WAS HERE</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push("/(tabs)/explore")}
+        >
+          <Text style={styles.backButtonText}>Back to Explore</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>DIETARY SCREEN. ARMAN WAS HERE</Text>
       </View>
-   );
+    </AuthBackground>
+  );
 }
 
 const styles = StyleSheet.create({
-   container: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: "#fff",
-   },
-   backButton: {
-      position: "absolute",
-      top: 80,
-      left: 24,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      backgroundColor: "#111",
-      borderRadius: 999,
-   },
-   backButtonText: {
-      color: "#fff",
-      fontWeight: "700",
-   },
-   title: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: "#111",
-   },
+  container: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backButton: {
+    position: "absolute",
+    top: 80,
+    left: 24,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#111",
+    borderRadius: 999,
+  },
+  backButtonText: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111",
+  },
 });
