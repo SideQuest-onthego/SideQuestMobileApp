@@ -25,13 +25,23 @@ const ACCESSIBILITY_OPTIONS = [
    "Elevator Access",
    "Parking",
 ];
-
+const ACTIVITY_OPTIONS = [
+   "Museum",
+   "Park",
+   "Restaurant",
+   "Quick Bite",
+   "Venue",
+   "Resort",
+   "Room Lodge",
+   "Rail Trip",
+];
 //State management for user preferences using useReducer
 type PreferencesState = {
    distance: number;
    budget: number;
    dietaryRestrictions: string[];
    accessibilityNeeds: string[];
+   preferredActivities: string[];
 };
 
 //Action types for updating preferences state
@@ -39,7 +49,8 @@ type Action =
    | { type: "SET_DISTANCE"; value: number }
    | { type: "SET_BUDGET"; value: number }
    | { type: "TOGGLE_DIETARY"; value: string }
-   | { type: "TOGGLE_ACCESSIBILITY"; value: string };
+   | { type: "TOGGLE_ACCESSIBILITY"; value: string }
+   | { type: "TOGGLE_ACTIVITY"; value: string };
 
 //Initial state for preferences with default values
 const initialState: PreferencesState = {
@@ -47,6 +58,7 @@ const initialState: PreferencesState = {
    budget: 25,
    dietaryRestrictions: [],
    accessibilityNeeds: [],
+   preferredActivities: []
 };
 
 //Handles toggling items in arrays for dietary restrictions and accessibility needs when user selects/unselects options
@@ -85,7 +97,14 @@ function preferencesReducer(
                action.value,
             ),
          };
-
+      case "TOGGLE_ACTIVITY":
+         return {
+            ...state,
+            preferredActivities: toggleItem(
+               state.preferredActivities,
+               action.value,
+            ),
+         };
       default:
          return state;
    }
@@ -246,6 +265,34 @@ export default function AccountScreen() {
                })}
             </View>
          </View>
+         {/* Preferred Activities preference card */}
+<View style={styles.card}>
+   <Text style={styles.cardTitle}>Preferred Activities</Text>
+   <View style={styles.chipContainer}>
+      {ACTIVITY_OPTIONS.map((option) => {
+         const isSelected = state.preferredActivities.includes(option);
+
+         return (
+            <Pressable
+               key={option}
+               style={[styles.chip, isSelected && styles.selectedChip]}
+               onPress={() =>
+                  dispatch({ type: "TOGGLE_ACTIVITY", value: option })
+               }
+            >
+               <Text
+                  style={[
+                     styles.chipText,
+                     isSelected && styles.selectedChipText,
+                  ]}
+               >
+                  {option}
+               </Text>
+            </Pressable>
+         );
+      })}
+   </View>
+</View>
       </ScrollView>
    );
 }
