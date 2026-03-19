@@ -5,6 +5,7 @@ import { places } from "../../data/places";
 import type { ActivityModel } from "../../types/sidequest-models";
 import { fetchNearbyManhattanPlaces } from "../../services/googlePlaces";
 
+// HOME TAB PAGE
 export default function HomeScreen() {
   const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);
@@ -15,7 +16,7 @@ export default function HomeScreen() {
 
     async function loadPlaces() {
       try {
-        const livePlaces = await fetchNearbyManhattanPlaces(); // Placeholder function name to indicidate hard coded
+        const livePlaces = await fetchNearbyManhattanPlaces();
         if (!mounted) return;
         if (livePlaces.length > 0) {
           setData(livePlaces);
@@ -42,11 +43,12 @@ export default function HomeScreen() {
           <ActivityIndicator size="large" />
           <Text style={styles.loadingText}>Loading nearby Manhattan places...</Text>
         </View>
+      ) : error ? (
+        <Text style={styles.errorText}>{error}</Text>
       ) : (
-        <>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        <View style={styles.deckWrapper}>
           <SwipeDeck data={data} />
-        </>
+        </View>
       )}
     </View>
   );
@@ -55,6 +57,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#DBFEF7", // updated background
   },
   centered: {
     flex: 1,
@@ -62,6 +65,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
     paddingHorizontal: 16,
+  },
+  deckWrapper: {
+    flex: 1,
+    paddingTop: 80, // cards lower
+    paddingHorizontal: 12,
   },
   loadingText: {
     fontSize: 14,

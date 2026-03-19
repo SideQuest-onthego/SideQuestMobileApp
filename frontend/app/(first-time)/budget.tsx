@@ -9,7 +9,7 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
-import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
+import AuthBackground from "@/components/AuthBackground";
 
 //Suggested budgets that users can quickly select from
 const SUGGESTED = [10, 25, 50, 100];
@@ -41,51 +41,20 @@ export default function BudgetScreen() {
 
   //Putting it all together
   return (
-    <View style={styles.screen}>
-      {/*Setting up the background gradient using SVG*/}
-      <Svg
-        width="100%"
-        height="100%"
-        style={StyleSheet.absoluteFill}
-        preserveAspectRatio="none"
-      >
-        <Defs>
-          {/*Defining the top-left gradient*/}
-          <LinearGradient
-            id="tl"
-            x1="0"
-            y1="0"
-            x2="300"
-            y2="200"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0%" stopColor="#5a8bff" />
-            <Stop offset="100%" stopColor="#a5ffc9" />
-          </LinearGradient>
-        </Defs>
-
-        {/*Drawing top-left wave */}
-        <Path
-          d="
-            M 0 0
-            L 360 0
-            C 260 110 300 220 210 350
-            C 140 450 90 420 0 640
-            C 0 640 0 800 0 800
-            C 0 800 0 0 0 0
-            Z
-          "
-          fill="url(#tl)"
-          opacity="0.95"
-        />
-      </Svg>
-
+    <AuthBackground variant="tl">
       {/*Making sure the keyboard doesn't cover the input on iOS*/}
       {/*Adding padding to shift the content up*/}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.center}
       >
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push("/(tabs)/explore")}
+        >
+          <Text style={styles.backButtonText}>Back to Explore</Text>
+        </TouchableOpacity>
+
         {/*The main card container containing all the content*/}
         <View style={styles.card}>
           <Text style={styles.title}>Set your budget</Text>
@@ -147,7 +116,7 @@ export default function BudgetScreen() {
           <Text style={styles.helper}>You can update this anytime</Text>
         </View>
       </KeyboardAvoidingView>
-    </View>
+    </AuthBackground>
   );
 }
 
@@ -161,6 +130,20 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     paddingHorizontal: 20,
+  },
+
+  backButton: {
+    alignSelf: "flex-start",
+    marginBottom: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#111",
+    borderRadius: 999,
+  },
+
+  backButtonText: {
+    color: "#fff",
+    fontWeight: "700",
   },
 
   card: {

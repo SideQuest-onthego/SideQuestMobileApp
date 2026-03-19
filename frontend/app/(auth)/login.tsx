@@ -11,38 +11,34 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/FirebaseConfig";
 
-export default function SignUpScreen() {
+export default function LoginScreen() {
   const router = useRouter();
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSignUp() {
+  async function handleLogin() {
     setError("");
-    if (!name || !email || !password) {
-      setError("Please fill in all fields.");
+    if (!email || !password) {
+      setError("Please enter your email and password.");
       return;
     }
     setLoading(true);
     try {
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(credential.user, { displayName: name });
-      router.replace("/(tabs)");
+      await signInWithEmailAndPassword(auth, email, password);
+      router.replace("/(tabs)/home");
     } catch (e: any) {
       const code = e?.code ?? "";
-      if (code === "auth/email-already-in-use") {
-        setError("An account with this email already exists. Try logging in.");
+      if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/wrong-password") {
+        setError("No account found with these credentials. Please check your email and password or sign up.");
       } else if (code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
-      } else if (code === "auth/weak-password") {
-        setError("Password must be at least 6 characters.");
       } else {
-        setError("Sign up failed. Please try again.");
+        setError("Login failed. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -63,17 +59,7 @@ export default function SignUpScreen() {
 
         {/* Card */}
         <View style={styles.card}>
-          <Text style={styles.title}>Create Account</Text>
-          
-          {/* Name */}
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Your full name"
-            placeholderTextColor="#aaa"
-            value={name}
-            onChangeText={setName}
-          />
+          <Text style={styles.title}>Welcome Back</Text>
 
           {/* Email */}
           <Text style={styles.label}>Email</Text>
@@ -91,34 +77,39 @@ export default function SignUpScreen() {
           <Text style={styles.label}>Password</Text>
           <TextInput
             style={styles.input}
-            placeholder="Create a password"
+            placeholder="Your password"
             placeholderTextColor="#aaa"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
           />
 
+          {/* Forgot Password */}
+          <TouchableOpacity style={styles.forgotPassword}>
+            <Text style={styles.forgotPasswordText}>Forgot password?</Text>
+          </TouchableOpacity>
+
           {/* Error message */}
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {/* Sign Up Button */}
+          {/* Login Button */}
           <TouchableOpacity
             style={styles.button}
-            onPress={handleSignUp}
+            onPress={handleLogin}
             disabled={loading}
           >
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.buttonText}>Sign Up</Text>
+              <Text style={styles.buttonText}>Log In</Text>
             )}
           </TouchableOpacity>
 
-          {/* Login redirect */}
-          <TouchableOpacity onPress={() => router.push("/login" as any)}>
-            <Text style={styles.loginText}>
-              Already have an account?{" "}
-              <Text style={styles.loginLink}>Log in</Text>
+          {/* Sign Up redirect */}
+          <TouchableOpacity onPress={() => router.push("/(auth)/signup" as any)}>
+            <Text style={styles.signupText}>
+              Do not have an account?{" "}
+              <Text style={styles.signupLink}>Sign up</Text>
             </Text>
           </TouchableOpacity>
         </View>
@@ -126,7 +117,7 @@ export default function SignUpScreen() {
     </KeyboardAvoidingView>
   );
 }
-//below is preety much all styling
+//below this is preety much all styling 
 const styles = StyleSheet.create({
   container: {
   flex: 1,
@@ -154,16 +145,14 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   card: {
-  backgroundColor: "#fff",
-  borderRadius: 24,
-  borderWidth: 1.5,
-  borderColor: "#000",
-  padding: 28,
-  shadowColor: "#000",
-  shadowOpacity: 0.15,
-  shadowRadius: 10,
-  elevation: 5,
-},
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 28,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
+  },
   title: {
     fontSize: 26,
     fontWeight: "800",
@@ -189,30 +178,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
+  forgotPassword: {
+    alignSelf: "flex-end",
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  forgotPasswordText: {
+    color: "#2D6A4F",
+    fontSize: 13,
+    fontWeight: "600",
+  },
   button: {
-  backgroundColor: "#102C26",
-  borderRadius: 14,
-  borderWidth: 1.5,
-  borderColor: "#000",
-  padding: 16,
-  alignItems: "center",
-  marginTop: 28,
-  marginBottom: 16,
-},
+    backgroundColor: "#102C26",
+    borderRadius: 14,
+    padding: 16,
+    alignItems: "center",
+    marginTop: 20,
+    marginBottom: 16,
+  },
   buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 1,
   },
-  loginText: {
+  signupText: {
     textAlign: "center",
     color: "#888",
     fontSize: 13,
   },
-  loginLink: {
-  color: "#2D6A4F",
-  fontWeight: "700",
-},
-
+  signupLink: {
+    color: "#2D6A4F",
+    fontWeight: "700",
+  },
+  errorText: {
+    color: "#D00000",
+    fontSize: 13,
+    marginTop: 10,
+    textAlign: "center",
+  },
 });

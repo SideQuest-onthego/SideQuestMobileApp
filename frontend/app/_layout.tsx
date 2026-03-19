@@ -20,10 +20,12 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SavedPlacesProvider> {/* ✅ Wrap whole app */}
+    <SavedPlacesProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="index" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="(first-time)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="account-profile" options={{ title: "Profile" }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />

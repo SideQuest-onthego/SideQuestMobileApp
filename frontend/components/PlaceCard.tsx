@@ -1,5 +1,5 @@
 import React from "react";
-import { Image, StyleSheet, Text, View, Pressable } from "react-native";
+import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 
 type PlaceCardProps = {
@@ -8,88 +8,93 @@ type PlaceCardProps = {
   onRemove?: (id: string) => void;
 };
 
-function formatPrice(item: ActivityModel) {
-  const { min, max } = item.estimatedCost;
-  if (min === 0 && max === 0) return "Free";
-  if (min === max) return `$${min}`;
-  return `$${min}-$${max}`;
-}
-
 export default function PlaceCard({ item, showRemove, onRemove }: PlaceCardProps) {
   return (
-    <View style={styles.screen}>
-      <View style={styles.card}>
-        <Text
-          style={styles.title}
-          numberOfLines={2}
-          adjustsFontSizeToFit
-          minimumFontScale={0.7}
-        >
-          {item.name}
-        </Text>
+    <View style={styles.card}>
+      {/* Left: Image */}
+      {item.links?.imageUrl ? (
+        <Image source={{ uri: item.links.imageUrl }} style={styles.image} />
+      ) : (
+        <View style={[styles.image, styles.imagePlaceholder]}>
+          <Text style={styles.imagePlaceholderText}>No Image</Text>
+        </View>
+      )}
 
-        <View style={styles.imageWrap}>
-          <Image
-            source={{
-              uri:
-                item.links?.imageUrl ??
-                "https://picsum.photos/seed/sidequest/800/500",
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+      {/* Middle: Info */}
+      <View style={styles.infoContainer}>
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>{item.name}</Text>
+          <Text style={styles.description}>
+            {item.location.address}, {item.location.city}
+          </Text>
         </View>
 
-        <View style={styles.infoRow}>
-          <View>
-            <Text style={styles.price}>{formatPrice(item)}</Text>
-            {item.location && (
-              <Text style={styles.location}>
-                {item.location.city}, {item.location.state}
-              </Text>
-            )}
-          </View>
-          {item.category && (
-            <Text style={styles.category}>{item.category}</Text>
-          )}
-        </View>
-
-        <View style={styles.buttonRow}>
-          <Text style={styles.button}>Dislike</Text>
-          <Text style={styles.button}>Like</Text>
-          {showRemove && onRemove && (
-  <Pressable
-    style={[styles.button, { borderColor: "black" }]}
-    onPress={() => onRemove(item.id)}
-  >
-    <Text style={{ color: "black", fontWeight: "800", textAlign: "center" }}>
-      Remove
-    </Text>
-  </Pressable>
-)}
-        </View>
+        {/* Bottom right: Remove button */}
+        {showRemove && (
+          <Pressable onPress={() => onRemove?.(item.id)} style={styles.removeButton}>
+            <Text style={styles.removeText}>Remove</Text>
+          </Pressable>
+        )}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, justifyContent: "center", alignItems: "center" },
   card: {
-    backgroundColor: "white",
-    width: "90%",
-    borderRadius: 28,
-    padding: 16,
-    borderWidth: 2,
-    borderColor: "rgb(0,0,0)",
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,           // thicker black border like Account cards
+    borderColor: "#000000",
+    borderRadius: 12,         
+    padding: 16,              // same padding as Account cards
+    marginBottom: 14,         // gap modeled after Account cards
+    marginTop: 24,            // first card offset from top
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  imageWrap: { width: "100%", height: 380, borderRadius: 24, overflow: "hidden" },
-  title: { marginTop: 12, fontSize: 24, fontWeight: "800" },
-  image: { width: "100%", height: "100%" },
-  infoRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
-  price: { fontSize: 18, fontWeight: "700" },
-  location: { fontSize: 14, opacity: 0.7 },
-  category: { fontWeight: "700" },
-  buttonRow: { flexDirection: "row", gap: 12, marginTop: 16 },
-  button: { flex: 1, textAlign: "center", paddingVertical: 12, borderWidth: 2, borderRadius: 12, fontWeight: "800" },
+  image: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  imagePlaceholder: {
+    backgroundColor: "#ddd",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  imagePlaceholderText: {
+    color: "#888",
+    fontSize: 12,
+  },
+  infoContainer: {
+    flex: 1,
+    justifyContent: "space-between",
+  },
+  textContainer: {},
+  title: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  description: {
+    fontSize: 14,
+    color: "#555",
+    marginTop: 4,
+  },
+  removeButton: {
+    backgroundColor: "#000",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-end",
+    marginTop: 8,
+  },
+  removeText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
 });

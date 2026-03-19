@@ -26,7 +26,7 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
   const [showTutorial, setShowTutorial] = useState(true);
   const pan = useRef(new Animated.ValueXY()).current;
 
-  const { addPlace } = useSavedPlaces(); // ✅ hook to save places
+  const { addPlace } = useSavedPlaces();
 
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -74,6 +74,7 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
   });
 
   function forceSwipe(dir: "left" | "right") {
+    setShowTutorial(false);
     const x = dir === "right" ? SCREEN_WIDTH : -SCREEN_WIDTH;
     Animated.timing(pan, {
       toValue: { x, y: 0 },
@@ -87,7 +88,7 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     if (!item) return;
 
     if (dir === "right") {
-      addPlace(item); // ✅ automatically save right-swiped place
+      addPlace(item);
     } else {
       onSwipeLeft?.(item);
     }
@@ -118,7 +119,10 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     <View style={styles.container}>
       <Animated.View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: bgColor, opacity: bgOpacity }]}
+        style={[
+          StyleSheet.absoluteFillObject,
+          { backgroundColor: bgColor, opacity: bgOpacity },
+        ]}
       />
 
       {showTutorial && (
@@ -132,18 +136,35 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
       )}
 
       <Animated.View
-        style={[styles.cardLayer, { transform: [{ translateX: pan.x }, { translateY: pan.y }, { rotate }] }]}
+        style={[
+          styles.cardLayer,
+          {
+            transform: [
+              { translateX: pan.x },
+              { translateY: pan.y },
+              { rotate },
+            ],
+          },
+        ]}
         {...panResponder.panHandlers}
       >
-        <Animated.View style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}>
+        <Animated.View
+          style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}
+        >
           <Text style={styles.badgeText}>LIKE</Text>
         </Animated.View>
 
-        <Animated.View style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}>
+        <Animated.View
+          style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}
+        >
           <Text style={styles.badgeText}>NOPE</Text>
         </Animated.View>
 
-        <PlaceCard item={current} />
+        <PlaceCard
+          item={current}
+          onDislike={() => forceSwipe("left")}
+          onLike={() => forceSwipe("right")}
+        />
       </Animated.View>
     </View>
   );
