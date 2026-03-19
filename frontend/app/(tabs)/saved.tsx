@@ -1,7 +1,7 @@
 import React from "react";
 import { View, FlatList, StyleSheet, Text } from "react-native";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
-import PlaceCard from "../../components/PlaceCard";
+import SavedPlaceCard from "../../components/SavedPlaceCard";
 
 export default function SavedScreen() {
   const { savedPlaces, removePlace } = useSavedPlaces();
@@ -15,7 +15,7 @@ export default function SavedScreen() {
           data={savedPlaces}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PlaceCard item={item} showRemove onRemove={removePlace} />
+            <SavedPlaceCard item={item} onRemove={removePlace} />
           )}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={{ height: 6 }} />} // smaller spacing
