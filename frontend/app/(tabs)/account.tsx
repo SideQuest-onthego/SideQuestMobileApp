@@ -1,10 +1,11 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LogoutButton } from "@/components/logout-button";
-import { auth } from "@/FirebaseConfig";
+import { auth, db } from "@/FirebaseConfig";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useCallback, useEffect, useReducer, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
@@ -34,12 +35,17 @@ type PreferencesState = {
    accessibilityNeeds: string[];
 };
 
+type PreferencesDocument = PreferencesState & {
+   updatedAt?: unknown;
+};
+
 //Action types for updating preferences state
 type Action =
    | { type: "SET_DISTANCE"; value: number }
    | { type: "SET_BUDGET"; value: number }
    | { type: "TOGGLE_DIETARY"; value: string }
-   | { type: "TOGGLE_ACCESSIBILITY"; value: string };
+   | { type: "TOGGLE_ACCESSIBILITY"; value: string }
+   | { type: "REPLACE_ALL"; value: PreferencesState };
 
 //Initial state for preferences with default values
 const initialState: PreferencesState = {
@@ -86,6 +92,9 @@ function preferencesReducer(
             ),
          };
 
+      case "REPLACE_ALL":
+         return action.value;
+
       default:
          return state;
    }
@@ -96,18 +105,98 @@ export default function AccountScreen() {
    const router = useRouter();
    const [displayName, setDisplayName] = useState("your_name");
    const [state, dispatch] = useReducer(preferencesReducer, initialState);
+   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
+   const [saveError, setSaveError] = useState("");
 
    const refreshDisplayName = useCallback(() => {
       setDisplayName(auth.currentUser?.displayName?.trim() || "your_name");
    }, []);
 
    useEffect(() => {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
          setDisplayName(user?.displayName?.trim() || "your_name");
+
+         if (!user) {
+            dispatch({ type: "REPLACE_ALL", value: initialState });
+            setHasLoadedPreferences(true);
+            setSaveError("");
+            return;
+         }
+
+         setHasLoadedPreferences(false);
+
+         try {
+            const preferencesRef = doc(db, "userPreferences", user.uid);
+            const snapshot = await getDoc(preferencesRef);
+
+            if (snapshot.exists()) {
+               const data = snapshot.data() as Partial<PreferencesDocument>;
+               dispatch({
+                  type: "REPLACE_ALL",
+                  value: {
+                     distance:
+                        typeof data.distance === "number"
+                           ? data.distance
+                           : initialState.distance,
+                     budget:
+                        typeof data.budget === "number"
+                           ? data.budget
+                           : initialState.budget,
+                     dietaryRestrictions: Array.isArray(
+                        data.dietaryRestrictions,
+                     )
+                        ? data.dietaryRestrictions.filter(
+                             (item): item is string => typeof item === "string",
+                          )
+                        : initialState.dietaryRestrictions,
+                     accessibilityNeeds: Array.isArray(data.accessibilityNeeds)
+                        ? data.accessibilityNeeds.filter(
+                             (item): item is string => typeof item === "string",
+                          )
+                        : initialState.accessibilityNeeds,
+                  },
+               });
+            } else {
+               dispatch({ type: "REPLACE_ALL", value: initialState });
+            }
+
+            setSaveError("");
+         } catch (error) {
+            console.error("Failed to load user preferences:", error);
+            setSaveError("Couldn't load saved preferences.");
+            dispatch({ type: "REPLACE_ALL", value: initialState });
+         } finally {
+            setHasLoadedPreferences(true);
+         }
       });
 
       return unsubscribe;
    }, []);
+
+   useEffect(() => {
+      if (!hasLoadedPreferences || !auth.currentUser) {
+         return;
+      }
+
+      const timeoutId = setTimeout(async () => {
+         try {
+            await setDoc(
+               doc(db, "userPreferences", auth.currentUser!.uid),
+               {
+                  ...state,
+                  updatedAt: serverTimestamp(),
+               },
+               { merge: true },
+            );
+            setSaveError("");
+         } catch (error) {
+            console.error("Failed to save user preferences:", error);
+            setSaveError("Couldn't save changes.");
+         }
+      }, 400);
+
+      return () => clearTimeout(timeoutId);
+   }, [hasLoadedPreferences, state]);
 
    useFocusEffect(
       useCallback(() => {
@@ -142,6 +231,7 @@ export default function AccountScreen() {
          </View>
 
          <Text style={styles.welcomeText}>Welcome {displayName}</Text>
+         {saveError ? <Text style={styles.statusText}>{saveError}</Text> : null}
 
          {/* Distance preference card*/}
          <View style={styles.card}>
@@ -276,10 +366,18 @@ const styles = StyleSheet.create({
    },
    welcomeText: {
       marginTop: 8,
-      marginBottom: 20,
+      marginBottom: 10,
       fontSize: 18,
       fontWeight: "600",
       color: "#111827",
+   },
+   statusText: {
+      width: "100%",
+      maxWidth: 320,
+      marginBottom: 12,
+      color: "#B91C1C",
+      fontSize: 13,
+      fontWeight: "500",
    },
    headerRow: {
       width: "100%",
