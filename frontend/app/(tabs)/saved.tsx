@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { View, FlatList, StyleSheet, Text } from "react-native";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
-import PlaceCard from "../../components/PlaceCard";
+import SavedPlaceCard from "../../components/SavedPlaceCard";
 
 export default function SavedScreen() {
   const { savedPlaces, removePlace } = useSavedPlaces();
@@ -21,11 +21,7 @@ export default function SavedScreen() {
           keyExtractor={(item) => item.id}
           extraData={renderTrigger} // ensures re-render
           renderItem={({ item }) => (
-            <PlaceCard
-              item={item}
-              showRemove
-              onRemove={(id) => removePlace(id)}
-            />
+            <SavedPlaceCard item={item} onRemove={removePlace} />
           )}
           contentContainerStyle={styles.listContent}
         />
