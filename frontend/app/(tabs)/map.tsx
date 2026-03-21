@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { useSavedPlaces } from "../../context/SavedPlacesContext";
 import {
   StyleSheet,
   View,
@@ -16,60 +17,19 @@ import * as Location from "expo-location";
 import Slider from "@react-native-community/slider";
 
 type Place = {
-  id: number;
+  id: string;
   title: string;
   description: string;
   coordinate: {
     latitude: number;
-    longitude: number;
+    longitude: number; 
   };
   isUserAdded?: boolean;
 };
 
-const DEFAULT_PLACES: Place[] = [ //SomeHardcoded sample places in NYC (will be replaced by backend data in the future)
-  {
-    id: 1,
-    title: "Statue of Liberty",
-    description: "Iconic national monument",
-    coordinate: { latitude: 40.6892, longitude: -74.0445 },
-  },
-  {
-    id: 2,
-    title: "Museum of Natural History",
-    description: "World-famous natural history museum",
-    coordinate: { latitude: 40.7813, longitude: -73.974 },
-  },
-  {
-    id: 3,
-    title: "Central Park",
-    description: "843-acre urban park",
-    coordinate: { latitude: 40.7851, longitude: -73.9683 },
-  },
-  {
-    id: 4,
-    title: "Brooklyn Bridge",
-    description: "Historic suspension bridge",
-    coordinate: { latitude: 40.7061, longitude: -73.9969 },
-  },
-  {
-    id: 5,
-    title: "Empire State Building",
-    description: "Iconic Art Deco skyscraper",
-    coordinate: { latitude: 40.7484, longitude: -73.9857 },
-  },
-  {
-    id: 6,
-    title: "Times Square",
-    description: "The crossroads of the world",
-    coordinate: { latitude: 40.758, longitude: -73.9855 },
-  },
-  {
-    id: 7,
-    title: "The High Line",
-    description: "Elevated linear park",
-    coordinate: { latitude: 40.748, longitude: -74.0048 },
-  },
-];
+
+
+
 
 // Haversine formula — returns distance in miles between two coords
 // Source: https://stackoverflow.com/a/21623206
@@ -97,10 +57,21 @@ function milesToDelta(miles: number) {
 }
 // Main Map Screen
 export default function MapScreen() {
-  const [places, setPlaces] = useState<Place[]>(DEFAULT_PLACES);
+  const { savedPlaces } = useSavedPlaces();
+const places: Place[] = savedPlaces
+  .filter(p => p.location?.lat && p.location?.lng)
+  .map(p => ({
+    id: p.id,
+    title: p.name,
+    description: p.location.address || p.category,
+    coordinate: {
+      latitude: p.location.lat,
+      longitude: p.location.lng,
+    },
+  }));
   const [query, setQuery] = useState<string>("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadingLocation, setLoadingLocation] = useState<boolean>(false);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
   const [pendingCoordinate, setPendingCoordinate] = useState<{
@@ -190,15 +161,13 @@ export default function MapScreen() {
       return;
     }
     const newPlace: Place = {
-      id: Date.now(),
+      id: String(Date.now()),
       title: newPlaceName.trim(),
       description: newPlaceDesc.trim() || "My saved location",
       coordinate: pendingCoordinate,
       isUserAdded: true,
     };
-    setPlaces((prev) => [...prev, newPlace]);
     setModalVisible(false);
-    setSelectedId(newPlace.id);
     mapRef.current?.animateToRegion(
       { ...pendingCoordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 },
       600
@@ -277,7 +246,6 @@ export default function MapScreen() {
             title="You are here"
           />
         )}
-// Place markers
         {visiblePlaces.map((place: Place) => (
           <Marker
             key={place.id}

@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SavedPlacesProvider } from '@/context/SavedPlacesContext';
+import { SavedPlacesProvider } from '../context/SavedPlacesContext'; // ✅ import provider
 
 SplashScreen.preventAutoHideAsync();
 

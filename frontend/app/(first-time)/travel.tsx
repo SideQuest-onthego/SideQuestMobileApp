@@ -1,19 +1,22 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import AuthBackground from "@/components/AuthBackground";
 
 export default function TravelScreen() {
   const router = useRouter();
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.push("/(tabs)/explore")}
-      >
-        <Text style={styles.backButtonText}>Back to Explore</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>TRAVEL SCREEN. ARMAN WAS HERE.</Text>
-    </View>
+    <AuthBackground variant="tl">
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.push("/(tabs)/explore")}
+        >
+          <Text style={styles.backButtonText}>Back to Explore</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>TRAVEL SCREEN. ARMAN WAS HERE.</Text>
+      </View>
+    </AuthBackground>
   );
 }
 
@@ -22,7 +25,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fff",
   },
   backButton: {
     position: "absolute",
