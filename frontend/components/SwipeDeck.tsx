@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
-import { useSavedPlaces } from "../context/SavedPlacesContext";
+import { useSavedPlaces } from "../context/SavedPlacesContext"; // ✅ import context
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
