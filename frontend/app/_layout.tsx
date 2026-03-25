@@ -11,7 +11,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { SavedPlacesProvider } from '../context/SavedPlacesContext'; // Import the SavedPlacesProvider
 import { LocationProvider } from '@/context/LocationContext'; // Import the LocationProvider
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync(); 
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
