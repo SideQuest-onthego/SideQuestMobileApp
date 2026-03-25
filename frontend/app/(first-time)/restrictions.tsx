@@ -20,6 +20,7 @@ export default function RestrictionsScreen() {
     "Elevator Access",
     "Seating",
     "Parking",
+    "None",
   ];
 
   // Load saved accessibility preferences from Firestore
@@ -75,11 +76,7 @@ export default function RestrictionsScreen() {
     try {
       if (auth.currentUser) {
         const ref = doc(db, "userPreferences", auth.currentUser.uid);
-        await setDoc(
-          ref,
-          { accessibilityNeeds: selected },
-          { merge: true }
-        );
+        await setDoc(ref, { accessibilityNeeds: selected }, { merge: true });
       }
     } catch (err) {
       console.log("Error saving accessibility preferences:", err);
