@@ -199,7 +199,9 @@ export default function DietaryScreen() {
                style={styles.backButton}
                onPress={() => router.push("/(first-time)/restrictions")}
             >
-               <Text style={styles.backButtonText}>{"< Back"}</Text>
+               <Text style={styles.backButtonText}>
+                  {"Back to Accessibility"}
+               </Text>
             </TouchableOpacity>
 
             <View style={styles.card}>
@@ -269,13 +271,15 @@ const styles = StyleSheet.create({
       flexGrow: 1,
       justifyContent: "center",
       paddingHorizontal: 20,
-      paddingTop: 64,
+      paddingTop: 120,
       paddingBottom: 40,
    },
 
    backButton: {
-      alignSelf: "flex-start",
-      marginBottom: 12,
+      position: "absolute",
+      top: 60,
+      left: 20,
+      zIndex: 1,
       paddingHorizontal: 14,
       paddingVertical: 10,
       backgroundColor: "#111",
