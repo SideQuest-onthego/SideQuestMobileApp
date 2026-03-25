@@ -9,15 +9,38 @@ export default function RestrictionsScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [dietFilter, setDietFilter] = useState<boolean | null>(null);
 
+  // NEW error states
+  const [accessibilityError, setAccessibilityError] = useState(false);
+  const [dietError, setDietError] = useState(false);
+
   const toggleOption = (option: string) => {
     if (selected.includes(option)) {
       setSelected(selected.filter((o) => o !== option));
     } else {
       setSelected([...selected, option]);
     }
+
+    // clear accessibility error once user selects something
+    if (selected.length >= 0) {
+      setAccessibilityError(false);
+    }
   };
 
   const handleNext = () => {
+    let hasError = false;
+
+    if (selected.length === 0) {
+      setAccessibilityError(true);
+      hasError = true;
+    }
+
+    if (dietFilter === null) {
+      setDietError(true);
+      hasError = true;
+    }
+
+    if (hasError) return;
+
     if (dietFilter === true) {
       router.push("/(first-time)/dietary");
     } else {
@@ -73,6 +96,13 @@ export default function RestrictionsScreen() {
             })}
           </View>
 
+          {/* Accessibility Error */}
+          {accessibilityError && (
+            <Text style={styles.errorText}>
+              Please select at least one accessibility option.
+            </Text>
+          )}
+
           <Text style={[styles.label, { marginTop: 20 }]}>
             Would you like to filter based on diet?
           </Text>
@@ -84,7 +114,10 @@ export default function RestrictionsScreen() {
                 { borderColor: "#000" },
                 dietFilter === true && styles.chipActive,
               ]}
-              onPress={() => setDietFilter(true)}
+              onPress={() => {
+                setDietFilter(true);
+                setDietError(false);
+              }}
             >
               <Text
                 style={[
@@ -102,7 +135,10 @@ export default function RestrictionsScreen() {
                 { borderColor: "#000" },
                 dietFilter === false && styles.chipActive,
               ]}
-              onPress={() => setDietFilter(false)}
+              onPress={() => {
+                setDietFilter(false);
+                setDietError(false);
+              }}
             >
               <Text
                 style={[
@@ -114,6 +150,13 @@ export default function RestrictionsScreen() {
               </Text>
             </TouchableOpacity>
           </View>
+
+          {/* Diet Error */}
+          {dietError && (
+            <Text style={styles.errorText}>
+              Please choose Yes or No for the diet filter.
+            </Text>
+          )}
 
           <TouchableOpacity style={styles.button} onPress={handleNext}>
             <Text style={styles.buttonText}>Continue</Text>
@@ -208,7 +251,12 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-  /* centered button */
+  errorText: {
+    color: "red",
+    marginTop: 8,
+    fontWeight: "600",
+  },
+
   button: {
     marginTop: 24,
     backgroundColor: "#000000",
