@@ -25,6 +25,7 @@ const ACCESSIBILITY_OPTIONS = [
    "Wheelchair Access",
    "Quiet Space",
    "Elevator Access",
+   "Seating",
    "Parking",
 ];
 

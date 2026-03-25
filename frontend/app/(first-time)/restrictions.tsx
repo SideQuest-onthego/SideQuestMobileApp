@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthBackground from "@/components/AuthBackground";
+import { auth, db } from "@/FirebaseConfig";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function RestrictionsScreen() {
   const router = useRouter();
@@ -9,9 +11,40 @@ export default function RestrictionsScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [dietFilter, setDietFilter] = useState<boolean | null>(null);
 
-  // NEW error states
   const [accessibilityError, setAccessibilityError] = useState(false);
   const [dietError, setDietError] = useState(false);
+
+  const options = [
+    "Wheelchair Access",
+    "Quiet Space",
+    "Elevator Access",
+    "Seating",
+    "Parking",
+  ];
+
+  // Load saved accessibility preferences from Firestore
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!auth.currentUser) return;
+
+      try {
+        const ref = doc(db, "userPreferences", auth.currentUser.uid);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          const data = snap.data();
+
+          if (Array.isArray(data.accessibilityNeeds)) {
+            setSelected(data.accessibilityNeeds);
+          }
+        }
+      } catch (err) {
+        console.log("Error loading accessibility preferences:", err);
+      }
+    };
+
+    loadPreferences();
+  }, []);
 
   const toggleOption = (option: string) => {
     if (selected.includes(option)) {
@@ -20,13 +53,10 @@ export default function RestrictionsScreen() {
       setSelected([...selected, option]);
     }
 
-    // clear accessibility error once user selects something
-    if (selected.length >= 0) {
-      setAccessibilityError(false);
-    }
+    setAccessibilityError(false);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     let hasError = false;
 
     if (selected.length === 0) {
@@ -41,20 +71,26 @@ export default function RestrictionsScreen() {
 
     if (hasError) return;
 
+    // Save accessibility preferences to Firestore
+    try {
+      if (auth.currentUser) {
+        const ref = doc(db, "userPreferences", auth.currentUser.uid);
+        await setDoc(
+          ref,
+          { accessibilityNeeds: selected },
+          { merge: true }
+        );
+      }
+    } catch (err) {
+      console.log("Error saving accessibility preferences:", err);
+    }
+
     if (dietFilter === true) {
       router.push("/(first-time)/dietary");
     } else {
       router.push("/(tabs)/home");
     }
   };
-
-  const options = [
-    "Wheelchair Access",
-    "Quiet Space",
-    "Elevator Access",
-    "Seating",
-    "Parking",
-  ];
 
   return (
     <AuthBackground variant="tl">
@@ -96,7 +132,6 @@ export default function RestrictionsScreen() {
             })}
           </View>
 
-          {/* Accessibility Error */}
           {accessibilityError && (
             <Text style={styles.errorText}>
               Please select at least one accessibility option.
@@ -151,7 +186,6 @@ export default function RestrictionsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Diet Error */}
           {dietError && (
             <Text style={styles.errorText}>
               Please choose Yes or No for the diet filter.
@@ -168,11 +202,6 @@ export default function RestrictionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-
   center: {
     flex: 1,
     justifyContent: "center",
