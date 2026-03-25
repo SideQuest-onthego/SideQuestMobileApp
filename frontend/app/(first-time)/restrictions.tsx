@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { useState } from "react";
-import Svg, { Path, Defs, LinearGradient, Stop } from "react-native-svg";
+import AuthBackground from "@/components/AuthBackground";
 
 export default function RestrictionsScreen() {
   const router = useRouter();
@@ -34,43 +34,7 @@ export default function RestrictionsScreen() {
   ];
 
   return (
-    <View style={styles.screen}>
-      {/* Background Gradient */}
-      <Svg
-        width="100%"
-        height="100%"
-        style={StyleSheet.absoluteFill}
-        preserveAspectRatio="none"
-      >
-        <Defs>
-          <LinearGradient
-            id="tl"
-            x1="0"
-            y1="0"
-            x2="300"
-            y2="200"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0%" stopColor="#5a8bff" />
-            <Stop offset="100%" stopColor="#a5ffc9" />
-          </LinearGradient>
-        </Defs>
-
-        <Path
-          d="
-            M 0 0
-            L 360 0
-            C 260 110 300 220 210 350
-            C 140 450 90 420 0 640
-            C 0 640 0 800 0 800
-            C 0 800 0 0 0 0
-            Z
-          "
-          fill="url(#tl)"
-          opacity="0.95"
-        />
-      </Svg>
-
+    <AuthBackground variant="tl">
       <View style={styles.center}>
         <TouchableOpacity
           style={styles.backButton}
@@ -100,10 +64,7 @@ export default function RestrictionsScreen() {
                   onPress={() => toggleOption(option)}
                 >
                   <Text
-                    style={[
-                      styles.chipText,
-                      active && styles.chipTextActive,
-                    ]}
+                    style={[styles.chipText, active && styles.chipTextActive]}
                   >
                     {option}
                   </Text>
@@ -159,7 +120,7 @@ export default function RestrictionsScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </AuthBackground>
   );
 }
 
@@ -236,8 +197,8 @@ const styles = StyleSheet.create({
 
   /* changed blue → black */
   chipActive: {
-    backgroundColor: "#000",
-    borderColor: "#000",
+    backgroundColor: "#5a8bff",
+    borderColor: "#5a8bff",
   },
 
   chipText: {

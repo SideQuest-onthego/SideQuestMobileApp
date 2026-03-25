@@ -22,7 +22,7 @@ export default function TravelScreen() {
 
   const toggleOption = (id: string) => {
     setSelected((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
     if (error) setError("");
   };
@@ -58,12 +58,18 @@ export default function TravelScreen() {
               return (
                 <TouchableOpacity
                   key={option.id}
-                  style={[styles.optionButton, active && styles.optionButtonActive]}
+                  style={[
+                    styles.optionButton,
+                    active && styles.optionButtonActive,
+                  ]}
                   onPress={() => toggleOption(option.id)}
                 >
                   <Text style={styles.optionIcon}>{option.icon}</Text>
                   <Text
-                    style={[styles.optionText, active && styles.optionTextActive]}
+                    style={[
+                      styles.optionText,
+                      active && styles.optionTextActive,
+                    ]}
                   >
                     {option.label}
                   </Text>
@@ -93,8 +99,9 @@ const styles = StyleSheet.create({
   },
 
   backButton: {
-    alignSelf: "flex-start",
-    marginBottom: 12,
+    position: "absolute",
+    top: 60,
+    left: 20,
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: "#111",
