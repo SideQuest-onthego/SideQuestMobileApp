@@ -29,7 +29,7 @@ export default function BudgetScreen() {
       return;
     }
     setError("");
-    router.push(`/swipe?budget=${numericBudget}`);
+    router.push(`/restrictions?budget=${numericBudget}`);
   };
 
   //Sets the budget to a suggested value when the user clicks on one of the chips
@@ -50,9 +50,9 @@ export default function BudgetScreen() {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.push("/(tabs)/explore")}
+          onPress={() => router.push("/travel")}
         >
-          <Text style={styles.backButtonText}>Back to Explore</Text>
+          <Text style={styles.backButtonText}>Back to Travel</Text>
         </TouchableOpacity>
 
         {/*The main card container containing all the content*/}
@@ -133,8 +133,11 @@ const styles = StyleSheet.create({
   },
 
   backButton: {
-    alignSelf: "flex-start",
-    marginBottom: 12,
+    position: "absolute",
+    top: 60,
+    left: 20,
+    zIndex: 10,
+
     paddingHorizontal: 14,
     paddingVertical: 10,
     backgroundColor: "#111",
