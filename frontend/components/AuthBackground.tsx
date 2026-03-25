@@ -57,8 +57,8 @@ export default function AuthBackground({
             y2={height * 0.5}
             gradientUnits="userSpaceOnUse"
           >
-            <Stop offset="0%" stopColor="#5a8bff" />
-            <Stop offset="100%" stopColor="#a5ffc9" />
+            <Stop offset="0%" stopColor="#052a12" />
+            <Stop offset="100%" stopColor="#62fae3" />
           </LinearGradient>
         </Defs>
 

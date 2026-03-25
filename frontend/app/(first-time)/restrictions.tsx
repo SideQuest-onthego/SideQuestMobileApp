@@ -100,10 +100,7 @@ export default function RestrictionsScreen() {
                   onPress={() => toggleOption(option)}
                 >
                   <Text
-                    style={[
-                      styles.chipText,
-                      active && styles.chipTextActive,
-                    ]}
+                    style={[styles.chipText, active && styles.chipTextActive]}
                   >
                     {option}
                   </Text>
@@ -236,8 +233,8 @@ const styles = StyleSheet.create({
 
   /* changed blue → black */
   chipActive: {
-    backgroundColor: "#000",
-    borderColor: "#000",
+    backgroundColor: "#5a8bff",
+    borderColor: "#5a8bff",
   },
 
   chipText: {
