@@ -8,7 +8,8 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { SavedPlacesProvider } from '../context/SavedPlacesContext'; // ✅ import provider
+import { SavedPlacesProvider } from '../context/SavedPlacesContext'; // Import the SavedPlacesProvider
+import { LocationProvider } from '@/context/LocationContext'; // Import the LocationProvider
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,18 +21,20 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <SavedPlacesProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="index" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="(first-time)" options={{ headerShown: false }} />
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="account-profile" options={{ title: "Profile" }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-        </Stack>
-        <StatusBar style="auto" />
-      </ThemeProvider>
-    </SavedPlacesProvider>
+    <LocationProvider>
+      <SavedPlacesProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
+            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+            <Stack.Screen name="(first-time)" options={{ headerShown: false }} />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="account-profile" options={{ title: 'Profile' }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          <StatusBar style="auto" />
+        </ThemeProvider>
+      </SavedPlacesProvider>
+    </LocationProvider>
   );
-}
+} 

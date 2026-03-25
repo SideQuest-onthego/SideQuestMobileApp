@@ -1,5 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
+import { useLocation } from "@/context/LocationContext";
 import {
   StyleSheet,
   View,
@@ -15,6 +16,7 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import Slider from "@react-native-community/slider";
+import { useLocalSearchParams } from "expo-router";
 
 type Place = {
   id: string;
@@ -22,17 +24,12 @@ type Place = {
   description: string;
   coordinate: {
     latitude: number;
-    longitude: number; 
+    longitude: number;
   };
   isUserAdded?: boolean;
+  isGeoResult?: boolean;
 };
 
-
-
-
-
-// Haversine formula — returns distance in miles between two coords
-// Source: https://stackoverflow.com/a/21623206
 function getDistanceMiles(
   lat1: number, lon1: number,
   lat2: number, lon2: number
@@ -48,32 +45,57 @@ function getDistanceMiles(
       Math.sin(dLon / 2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-// Converts miles to latitudeDelta and longitudeDelta for map zoom level
+
 function milesToDelta(miles: number) {
   return {
     latitudeDelta: miles / 69,
     longitudeDelta: miles / 55,
   };
 }
-// Main Map Screen
+
 export default function MapScreen() {
   const { savedPlaces } = useSavedPlaces();
-const places: Place[] = savedPlaces
-  .filter(p => p.location?.lat && p.location?.lng)
-  .map(p => ({
-    id: p.id,
-    title: p.name,
-    description: p.location.address || p.category,
-    coordinate: {
-      latitude: p.location.lat,
-      longitude: p.location.lng,
-    },
-  }));
+
+  // ── Synced with LocationContext so both screens share the same value ──
+  const { radiusMiles, setRadiusMiles } = useLocation();
+
+  // Local state for smooth dragging; syncs from context when other screen changes it
+  const [localRadius, setLocalRadius] = useState<number>(radiusMiles);
+
+  useEffect(() => {
+    setLocalRadius(radiusMiles);
+  }, [radiusMiles]);
+
+  const params = useLocalSearchParams<{
+    address?: string;
+    lat?: string;
+    lng?: string;
+    radius?: string;
+  }>();
+
+  const places: Place[] = savedPlaces
+    .filter((p) => p.location?.lat && p.location?.lng)
+    .map((p) => ({
+      id: p.id,
+      title: p.name,
+      description: p.location.address || p.category,
+      coordinate: {
+        latitude: p.location.lat,
+        longitude: p.location.lng,
+      },
+    }));
+
   const [query, setQuery] = useState<string>("");
   const [suggestions, setSuggestions] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchLoading, setSearchLoading] = useState<boolean>(false);
+  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [loadingLocation, setLoadingLocation] = useState<boolean>(false);
+  const [loadingAddress, setLoadingAddress] = useState<boolean>(false);
   const [modalVisible, setModalVisible] = useState<boolean>(false);
+  const [addressModalVisible, setAddressModalVisible] = useState<boolean>(false);
+  const [addressInput, setAddressInput] = useState<string>("");
   const [pendingCoordinate, setPendingCoordinate] = useState<{
     latitude: number;
     longitude: number;
@@ -84,9 +106,80 @@ const places: Place[] = savedPlaces
     latitude: number;
     longitude: number;
   } | null>(null);
-  const [radiusMiles, setRadiusMiles] = useState<number>(10);
   const [sliderVisible, setSliderVisible] = useState<boolean>(false);
+  const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
   const mapRef = useRef<any>(null);
+  const paramsApplied = useRef(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setKeyboardHeight(e.endCoordinates.height)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      () => setKeyboardHeight(0)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (paramsApplied.current) return;
+    if (!params.address && !params.lat) return;
+
+    const radius = params.radius ? parseFloat(params.radius) : radiusMiles;
+    setRadiusMiles(radius);
+    setLocalRadius(radius);
+
+    async function applyParams() {
+      if (params.lat && params.lng) {
+        const coords = {
+          latitude: parseFloat(params.lat),
+          longitude: parseFloat(params.lng),
+        };
+        setUserLocation(coords);
+        setPendingCoordinate(coords);
+        setModalVisible(true);
+        setTimeout(() => {
+          mapRef.current?.animateToRegion(
+            { ...coords, ...milesToDelta(radius) },
+            600
+          );
+        }, 500);
+        paramsApplied.current = true;
+        return;
+      }
+
+      if (params.address) {
+        try {
+          const results = await Location.geocodeAsync(params.address);
+          if (results && results.length > 0) {
+            const coords = {
+              latitude: results[0].latitude,
+              longitude: results[0].longitude,
+            };
+            setUserLocation(coords);
+            setPendingCoordinate(coords);
+            setModalVisible(true);
+            setTimeout(() => {
+              mapRef.current?.animateToRegion(
+                { ...coords, ...milesToDelta(radius) },
+                600
+              );
+            }, 500);
+          }
+        } catch {
+          Alert.alert("Error", "Could not find that address on the map.");
+        }
+        paramsApplied.current = true;
+      }
+    }
+
+    applyParams();
+  }, [params]);
 
   if (Platform.OS === "web") {
     return (
@@ -95,13 +188,13 @@ const places: Place[] = savedPlaces
       </View>
     );
   }
- // Dynamically import MapView and related components to avoid issues on web
+
   const MapView = require("react-native-maps").default;
   const { Polygon, Marker, Circle } = require("react-native-maps");
 
   const defaultCenter = { latitude: 40.7128, longitude: -74.006 };
   const mapCenter = userLocation || defaultCenter;
-// Tristate area polygon (NY-NJ-CT border region)
+
   const tristateArea = [
     { latitude: 41.3628, longitude: -74.6944 },
     { latitude: 41.3573, longitude: -73.5543 },
@@ -113,16 +206,15 @@ const places: Place[] = savedPlaces
     { latitude: 41.3628, longitude: -74.6944 },
   ];
 
-  // Filter places within radius (only when user location is known)
   const visiblePlaces = userLocation
     ? places.filter((p) =>
         getDistanceMiles(
           userLocation.latitude, userLocation.longitude,
           p.coordinate.latitude, p.coordinate.longitude
-        ) <= radiusMiles
+        ) <= localRadius
       )
     : places;
-// Handle "Add My Location" button press
+
   async function handleAddCurrentLocation() {
     setLoadingLocation(true);
     try {
@@ -141,10 +233,8 @@ const places: Place[] = savedPlaces
       setNewPlaceName("");
       setNewPlaceDesc("");
       setModalVisible(true);
-
-      // Zoom map to user location with current radius
       mapRef.current?.animateToRegion(
-        { ...coords, ...milesToDelta(radiusMiles) },
+        { ...coords, ...milesToDelta(localRadius) },
         600
       );
     } catch {
@@ -153,72 +243,188 @@ const places: Place[] = savedPlaces
       setLoadingLocation(false);
     }
   }
-// Handle saving a new place from the modal
+
+  async function handleAddressSearch() {
+    if (addressInput.trim().length === 0) {
+      Alert.alert("Enter an address", "Please type an address first.");
+      return;
+    }
+    setLoadingAddress(true);
+    try {
+      const results = await Location.geocodeAsync(addressInput.trim());
+      if (!results || results.length === 0) {
+        Alert.alert("Not found", "Could not find that address. Try being more specific.");
+        return;
+      }
+      const coords = {
+        latitude: results[0].latitude,
+        longitude: results[0].longitude,
+      };
+      setUserLocation(coords);
+      setPendingCoordinate(coords);
+      setNewPlaceName("");
+      setNewPlaceDesc("");
+      setAddressModalVisible(false);
+      setAddressInput("");
+      setModalVisible(true);
+      mapRef.current?.animateToRegion(
+        { ...coords, ...milesToDelta(localRadius) },
+        600
+      );
+    } catch {
+      Alert.alert("Error", "Could not look up that address. Please try again.");
+    } finally {
+      setLoadingAddress(false);
+    }
+  }
+
   function handleSavePlace() {
     if (!pendingCoordinate) return;
     if (newPlaceName.trim().length === 0) {
       Alert.alert("Name required", "Please enter a name for this place.");
       return;
     }
-    const newPlace: Place = {
-      id: String(Date.now()),
-      title: newPlaceName.trim(),
-      description: newPlaceDesc.trim() || "My saved location",
-      coordinate: pendingCoordinate,
-      isUserAdded: true,
-    };
     setModalVisible(false);
     mapRef.current?.animateToRegion(
       { ...pendingCoordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 },
       600
     );
   }
-// Handle distance slider changes
+
+  // Smooth drag — only updates local display
   function handleSliderChange(val: number) {
-    const rounded = Math.round(val * 4) / 4;
+    setLocalRadius(Math.round(val * 2) / 2);
+  }
+
+  // Finger lifted — write final value to shared context so other screen syncs
+  function handleSlidingComplete(val: number) {
+    const rounded = Math.round(val * 2) / 2;
     setRadiusMiles(rounded);
     mapRef.current?.animateToRegion(
       { ...mapCenter, ...milesToDelta(rounded) },
       300
     );
   }
-// Handle search input changes
+
   function handleSearch(text: string) {
     setQuery(text);
-    if (text.trim().length === 0) { setSuggestions([]); return; }
-    setSuggestions(
-      places.filter((p) => p.title.toLowerCase().includes(text.toLowerCase()))
+
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+
+    if (text.trim().length === 0) {
+      setSuggestions([]);
+      setSearchLoading(false);
+      return;
+    }
+
+    const savedMatches = places.filter((p) =>
+      p.title.toLowerCase().includes(text.toLowerCase())
     );
+    setSuggestions(savedMatches);
+
+    if (text.trim().length >= 3) {
+      setSearchLoading(true);
+      searchDebounce.current = setTimeout(async () => {
+        try {
+          const geoResults = await Location.geocodeAsync(text.trim());
+          if (geoResults && geoResults.length > 0) {
+            const geoPlaces: Place[] = await Promise.all(
+              geoResults.slice(0, 4).map(async (r, i) => {
+                let label = `${r.latitude.toFixed(4)}, ${r.longitude.toFixed(4)}`;
+                let sublabel = "Location";
+                try {
+                  const rev = await Location.reverseGeocodeAsync({
+                    latitude: r.latitude,
+                    longitude: r.longitude,
+                  });
+                  if (rev && rev.length > 0) {
+                    const a = rev[0];
+                    const street =
+                      a.streetNumber && a.street
+                        ? `${a.streetNumber} ${a.street}`
+                        : a.street ?? "";
+                    const city = a.city ?? a.subregion ?? "";
+                    const region = a.region ?? "";
+                    label = [street, city, region].filter(Boolean).join(", ");
+                    sublabel = a.country ?? "Location";
+                  }
+                } catch {
+                  // keep coord fallback
+                }
+                return {
+                  id: `geo-${i}-${r.latitude}`,
+                  title: label || text,
+                  description: sublabel,
+                  coordinate: { latitude: r.latitude, longitude: r.longitude },
+                  isGeoResult: true,
+                };
+              })
+            );
+
+            setSuggestions((prev) => {
+              const merged = [...prev];
+              for (const geo of geoPlaces) {
+                if (!merged.some((p) => p.title === geo.title)) {
+                  merged.push(geo);
+                }
+              }
+              return merged;
+            });
+          }
+        } catch {
+          // Silent fail — saved matches still show
+        } finally {
+          setSearchLoading(false);
+        }
+      }, 500);
+    } else {
+      setSearchLoading(false);
+    }
   }
-// Handle selecting a place from search suggestions
+
   function handleSelect(place: Place) {
     setQuery(place.title);
     setSuggestions([]);
-    setSelectedId(place.id);
     Keyboard.dismiss();
-    mapRef.current?.animateToRegion(
-      { ...place.coordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 },
-      600
-    );
+
+    if (place.isGeoResult) {
+      setUserLocation(place.coordinate);
+      mapRef.current?.animateToRegion(
+        { ...place.coordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+        600
+      );
+    } else {
+      setSelectedId(place.id);
+      mapRef.current?.animateToRegion(
+        { ...place.coordinate, latitudeDelta: 0.01, longitudeDelta: 0.01 },
+        600
+      );
+    }
   }
-// Handle clearing the search input
+
   function handleClear() {
     setQuery("");
     setSuggestions([]);
     setSelectedId(null);
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+    setSearchLoading(false);
     mapRef.current?.animateToRegion(
       { ...defaultCenter, latitudeDelta: 0.0922, longitudeDelta: 0.0421 },
       600
     );
   }
-// Main render
+
   return (
     <View style={styles.container}>
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFillObject}
         mapType="standard"
-        initialRegion={{ ...defaultCenter, latitudeDelta: 0.0922, longitudeDelta: 0.0421 }}
+        initialRegion={{
+          ...defaultCenter,
+          latitudeDelta: 0.0922,
+          longitudeDelta: 0.0421,
+        }}
       >
         <Polygon
           coordinates={tristateArea}
@@ -227,18 +433,16 @@ const places: Place[] = savedPlaces
           strokeWidth={2}
         />
 
-        {/* Radius circle centered on user */}
         {userLocation && (
           <Circle
             center={userLocation}
-            radius={radiusMiles * 1609.34}
+            radius={localRadius * 1609.34}
             strokeColor="rgba(0, 102, 255, 0.5)"
             fillColor="rgba(0, 102, 255, 0.08)"
             strokeWidth={2}
           />
         )}
 
-        {/* User location pin */}
         {userLocation && (
           <Marker
             coordinate={userLocation}
@@ -246,6 +450,7 @@ const places: Place[] = savedPlaces
             title="You are here"
           />
         )}
+
         {visiblePlaces.map((place: Place) => (
           <Marker
             key={place.id}
@@ -269,13 +474,20 @@ const places: Place[] = savedPlaces
           <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
-            placeholder="Search places..."
+            placeholder="Search city, address, or place..."
             placeholderTextColor="#999"
             value={query}
             onChangeText={handleSearch}
             returnKeyType="search"
           />
-          {query.length > 0 && (
+          {searchLoading && (
+            <ActivityIndicator
+              size="small"
+              color="#BFD7EA"
+              style={{ marginRight: 4 }}
+            />
+          )}
+          {query.length > 0 && !searchLoading && (
             <TouchableOpacity onPress={handleClear}>
               <Text style={styles.clearBtn}>✕</Text>
             </TouchableOpacity>
@@ -286,7 +498,7 @@ const places: Place[] = savedPlaces
           <FlatList<Place>
             style={styles.suggestions}
             data={suggestions}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => (
               <TouchableOpacity
@@ -294,7 +506,8 @@ const places: Place[] = savedPlaces
                 onPress={() => handleSelect(item)}
               >
                 <Text style={styles.suggestionTitle}>
-                  {item.isUserAdded ? "📍 " : ""}{item.title}
+                  {item.isGeoResult ? "📍 " : item.isUserAdded ? "⭐ " : ""}
+                  {item.title}
                 </Text>
                 <Text style={styles.suggestionDesc}>{item.description}</Text>
               </TouchableOpacity>
@@ -302,23 +515,21 @@ const places: Place[] = savedPlaces
           />
         )}
 
-        {query.length > 0 && suggestions.length === 0 && (
+        {query.length > 0 && suggestions.length === 0 && !searchLoading && (
           <View style={styles.noResults}>
-            <Text style={styles.noResultsText}>No places found</Text>
+            <Text style={styles.noResultsText}>No results found</Text>
           </View>
         )}
       </View>
 
       {/* Bottom controls */}
       <View style={styles.bottomPanel}>
-
-        {/* Distance slider toggle + panel */}
         <TouchableOpacity
           style={styles.sliderToggle}
           onPress={() => setSliderVisible((v) => !v)}
         >
           <Text style={styles.sliderToggleText}>
-          Travel Distance: {radiusMiles} miles
+            Travel Distance: {localRadius} miles
           </Text>
           <Text style={styles.sliderToggleChevron}>
             {sliderVisible ? "▼" : "▲"}
@@ -334,8 +545,9 @@ const places: Place[] = savedPlaces
                 minimumValue={0.5}
                 maximumValue={50}
                 step={0.5}
-                value={radiusMiles}
+                value={localRadius}
                 onValueChange={handleSliderChange}
+                onSlidingComplete={handleSlidingComplete}
                 minimumTrackTintColor="#BFD7EA"
                 maximumTrackTintColor="#ddd"
                 thumbTintColor="#BFD7EA"
@@ -344,28 +556,94 @@ const places: Place[] = savedPlaces
             </View>
             <Text style={styles.sliderSubtext}>
               {userLocation
-                ? `Showing ${visiblePlaces.length} place${visiblePlaces.length !== 1 ? "s" : ""} within ${radiusMiles} mi`
+                ? `Showing ${visiblePlaces.length} place${visiblePlaces.length !== 1 ? "s" : ""} within ${localRadius} mi`
                 : "Add your location to filter by distance"}
             </Text>
           </View>
         )}
 
-        {/* Add My Location button */}
-        <TouchableOpacity
-          style={styles.addLocationBtn}
-          onPress={handleAddCurrentLocation}
-          disabled={loadingLocation}
-        >
-          {loadingLocation ? (
-            <ActivityIndicator color="#000" size="small" />
-          ) : (
-            <>
-              <Text style={styles.addLocationIcon}>＋</Text>
-              <Text style={styles.addLocationText}>Add My Location</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        <View style={styles.locationRow}>
+          <TouchableOpacity
+            style={styles.addressBtn}
+            onPress={() => setAddressModalVisible(true)}
+          >
+            <Text style={styles.locationBtnText}>Enter Address</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.gpsBtn}
+            onPress={handleAddCurrentLocation}
+            disabled={loadingLocation}
+          >
+            {loadingLocation ? (
+              <ActivityIndicator color="#000" size="small" />
+            ) : (
+              <Text style={styles.locationBtnText}>Use My Location</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* Address Entry Modal */}
+      <Modal
+        visible={addressModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddressModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => {
+              Keyboard.dismiss();
+              setAddressModalVisible(false);
+              setAddressInput("");
+            }}
+          />
+          <View style={[styles.modalCard, { marginBottom: keyboardHeight }]}>
+            <Text style={styles.modalTitle}>Enter Your Address</Text>
+            <Text style={styles.modalSubtitle}>
+              Type your address and we'll pin it on the map
+            </Text>
+            <Text style={styles.inputLabel}>Address</Text>
+            <TextInput
+              style={styles.addressTextInput}
+              placeholder="e.g. 123 Main St, New York, NY"
+              placeholderTextColor="#aaa"
+              value={addressInput}
+              onChangeText={setAddressInput}
+              autoFocus
+              returnKeyType="search"
+              onSubmitEditing={handleAddressSearch}
+              autoCapitalize="words"
+              autoCorrect={false}
+            />
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => {
+                  setAddressModalVisible(false);
+                  setAddressInput("");
+                }}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleAddressSearch}
+                disabled={loadingAddress}
+              >
+                {loadingAddress ? (
+                  <ActivityIndicator color="#000" size="small" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Find on Map</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Save Place Modal */}
       <Modal
@@ -375,7 +653,12 @@ const places: Place[] = savedPlaces
         onRequestClose={() => setModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={Keyboard.dismiss}
+          />
+          <View style={[styles.modalCard, { marginBottom: keyboardHeight }]}>
             <Text style={styles.modalTitle}>Save This Location</Text>
             <Text style={styles.modalCoords}>
               {pendingCoordinate
@@ -389,6 +672,7 @@ const places: Place[] = savedPlaces
               placeholderTextColor="#aaa"
               value={newPlaceName}
               onChangeText={setNewPlaceName}
+              returnKeyType="next"
             />
             <Text style={styles.inputLabel}>Description (optional)</Text>
             <TextInput
@@ -397,6 +681,8 @@ const places: Place[] = savedPlaces
               placeholderTextColor="#aaa"
               value={newPlaceDesc}
               onChangeText={setNewPlaceDesc}
+              returnKeyType="done"
+              onSubmitEditing={Keyboard.dismiss}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -415,7 +701,7 @@ const places: Place[] = savedPlaces
     </View>
   );
 }
-// This is pretty much all styling down here
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   searchWrapper: {
@@ -515,30 +801,54 @@ const styles = StyleSheet.create({
     color: "#666",
     marginTop: 4,
   },
-addLocationBtn: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
-  backgroundColor: "#BFD7EA",
-  paddingVertical: 13,
-  paddingHorizontal: 24,
-  borderRadius: 30,
-  borderWidth: 1.5,
-  borderColor: "#000",
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 3 },
-  shadowOpacity: 0.25,
-  shadowRadius: 6,
-  elevation: 6,
-  gap: 8,
-},
-addLocationIcon: { color: "#000", fontSize: 20, fontWeight: "700" },
-addLocationText: { color: "#000", fontSize: 15, fontWeight: "700" },
+  locationRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  addressBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: "#000",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 6,
+    gap: 6,
+  },
+  gpsBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#BFD7EA",
+    paddingVertical: 13,
+    paddingHorizontal: 12,
+    borderRadius: 30,
+    borderWidth: 1.5,
+    borderColor: "#000",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+    gap: 6,
+  },
+  locationBtnIcon: { color: "#000", fontSize: 16, fontWeight: "700" },
+  locationBtnText: { color: "#000", fontSize: 14, fontWeight: "700" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.45)",
     justifyContent: "flex-end",
   },
+  modalDismiss: { flex: 1 },
   modalCard: {
     backgroundColor: "#fff",
     borderTopLeftRadius: 20,
@@ -546,9 +856,35 @@ addLocationText: { color: "#000", fontSize: 15, fontWeight: "700" },
     padding: 24,
     paddingBottom: 40,
   },
-  modalTitle: { fontSize: 18, fontWeight: "700", color: "#222", marginBottom: 4 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#222",
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#888",
+    marginBottom: 20,
+  },
   modalCoords: { fontSize: 12, color: "#999", marginBottom: 20 },
-  inputLabel: { fontSize: 13, fontWeight: "600", color: "#555", marginBottom: 6 },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#555",
+    marginBottom: 6,
+  },
+  addressTextInput: {
+    borderWidth: 1.5,
+    borderColor: "#BFD7EA",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#333",
+    backgroundColor: "#F9FBFD",
+    marginBottom: 20,
+  },
   modalInput: {
     borderWidth: 1,
     borderColor: "#e0e0e0",
@@ -561,22 +897,22 @@ addLocationText: { color: "#000", fontSize: 15, fontWeight: "700" },
   },
   modalButtons: { flexDirection: "row", gap: 12, marginTop: 4 },
   cancelBtn: {
-  flex: 1,
-  paddingVertical: 13,
-  borderRadius: 12,
-  borderWidth: 1.5,
-  borderColor: "#000",
-  alignItems: "center",
-},
-cancelBtnText: { fontSize: 15, color: "#000", fontWeight: "600" },
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#000",
+    alignItems: "center",
+  },
+  cancelBtnText: { fontSize: 15, color: "#000", fontWeight: "600" },
   saveBtn: {
-  flex: 1,
-  paddingVertical: 13,
-  borderRadius: 12,
-  backgroundColor: "#BFD7EA",
-  borderWidth: 1.5,
-  borderColor: "#000",
-  alignItems: "center",
-},
-saveBtnText: { fontSize: 15, color: "#000", fontWeight: "700" },
-}); 
+    flex: 1,
+    paddingVertical: 13,
+    borderRadius: 12,
+    backgroundColor: "#BFD7EA",
+    borderWidth: 1.5,
+    borderColor: "#000",
+    alignItems: "center",
+  },
+  saveBtnText: { fontSize: 15, color: "#000", fontWeight: "700" },
+});
