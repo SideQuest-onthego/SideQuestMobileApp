@@ -195,10 +195,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
 
-  /* changed blue → black */
   chipActive: {
-    backgroundColor: "#5a8bff",
-    borderColor: "#5a8bff",
+    backgroundColor: "#0d8474",
+    borderColor: "#0d8474",
   },
 
   chipText: {
