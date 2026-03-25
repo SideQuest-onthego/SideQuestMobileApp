@@ -32,7 +32,7 @@ export default function DistanceScreen() {
   const [searchResults, setSearchResults] = useState<{ label: string; latitude: number; longitude: number }[]>([]);
   const [searchLoading, setSearchLoading] = useState<boolean>(false);
 
-  // Sync local slider when context changes (e.g. map screen updated it)
+  // Sync local slider when context changes (e.g map screen updated it)
   useEffect(() => {
     setLocalRadius(radiusMiles);
   }, [radiusMiles]);
@@ -198,23 +198,15 @@ export default function DistanceScreen() {
               </Text>
             </View>
 
-            {/* Search a Location — opens modal */}
-            <TouchableOpacity
-              style={styles.travelBtn}
-              onPress={() => setSearchModalVisible(true)}
-            >
-              <Text style={styles.travelBtnText}>🔍  Search a Location</Text>
-            </TouchableOpacity>
-
             {/* Continue button */}
             <TouchableOpacity
               style={[styles.continueBtn, !userLocation && styles.continueBtnDisabled]}
               onPress={() => {
                 if (!userLocation) {
-                  Alert.alert("No location set", "Use GPS or search a location first.");
+                  Alert.alert("No location set", "Use GPS first.");
                   return;
                 }
-                router.push("/(tabs)/home" as any);
+                router.push("/travel");
               }}
             >
               <Text style={[styles.continueBtnText, !userLocation && { color: "#fff" }]}>

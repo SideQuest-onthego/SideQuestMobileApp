@@ -8,14 +8,14 @@ import {
   Text,
   TextInput,
   FlatList,
-  TouchableOpacity,
-  Keyboard,
-  Alert,
-  Modal,
-  ActivityIndicator,
-} from "react-native";
-import * as Location from "expo-location";
-import Slider from "@react-native-community/slider";
+  TouchableOpacity, 
+  Keyboard, 
+  Alert, 
+  Modal, 
+  ActivityIndicator,   
+} from "react-native";  
+import * as Location from "expo-location"; 
+import Slider from "@react-native-community/slider"; 
 import { useLocalSearchParams } from "expo-router";
 
 type Place = {
