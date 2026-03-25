@@ -1,3 +1,4 @@
+// frontend/app/(tabs)/_layout.tsx
 import { Tabs } from "expo-router";
 import React from "react";
 
@@ -18,7 +19,7 @@ export default function TabLayout() {
          }}
       >
          <Tabs.Screen
-            name="index"
+            name="home"
             options={{
                title: "Home",
                tabBarIcon: ({ color }) => (
@@ -38,7 +39,7 @@ export default function TabLayout() {
          <Tabs.Screen
             name="explore"
             options={{
-               title: "Boiler Tab",
+               title: "Test Screens",
                tabBarIcon: ({ color }) => (
                   <IconSymbol size={28} name="paperplane.fill" color={color} />
                ),
@@ -58,6 +59,7 @@ export default function TabLayout() {
                ),
             }}
          />
+
          <Tabs.Screen
             name="account"
             options={{
