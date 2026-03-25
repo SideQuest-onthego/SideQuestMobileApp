@@ -48,7 +48,7 @@ export default function BudgetScreen() {
           budget: numericBudget,
           updatedAt: serverTimestamp(),
         },
-        { merge: true }
+        { merge: true },
       );
 
       // Navigate to next screen with budget as backup param
@@ -89,7 +89,7 @@ export default function BudgetScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Set your budget</Text>
           <Text style={styles.subtitle}>
-            Dicover places that won't break the bank
+            Discover places that won&apos;t break the bank
           </Text>
 
           <Text style={styles.label}>Budget</Text>
@@ -141,8 +141,8 @@ export default function BudgetScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {/*When the user clicks continue, we validate the input and navigate to the next screen if it's valid*/}
-          <TouchableOpacity 
-            style={[styles.button, isLoading && styles.buttonDisabled]} 
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
             onPress={handleContinue}
             disabled={isLoading}
           >
