@@ -36,7 +36,7 @@ export default function LoginScreen() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.replace("/(tabs)/home");
+      router.replace("/(first-time)/distance");
     } catch (e: unknown) {
       const err = e as { code?: string };
       const code = err.code ?? "";

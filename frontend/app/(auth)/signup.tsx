@@ -34,7 +34,7 @@ export default function SignUpScreen() {
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(credential.user, { displayName: name });
-      router.replace("/(first-time)/budget");
+      router.replace("/(first-time)/distance");
     } catch (e: unknown) {
       const err = e as { code?: string };
       const code = err.code ?? "";
