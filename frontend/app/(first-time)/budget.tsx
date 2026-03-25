@@ -9,6 +9,8 @@ import {
   Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { auth, db } from "@/FirebaseConfig";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import AuthBackground from "@/components/AuthBackground";
 
 //Suggested budgets that users can quickly select from
@@ -18,18 +20,45 @@ export default function BudgetScreen() {
   const router = useRouter();
   const [budget, setBudget] = useState("");
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  //Checks if the budget inputed by the user is valid
-  //If so, navigates to the swipe card screen, passing the budget as a query parameter
-  //If not, shows an error message
-  const handleContinue = () => {
+  //Saves budget to Firestore and navigates to next screen
+  const handleContinue = async () => {
     const numericBudget = Number(budget);
     if (!budget || Number.isNaN(numericBudget) || numericBudget <= 0) {
       setError("Enter a valid budget");
       return;
     }
+
+    setIsLoading(true);
     setError("");
-    router.push(`/restrictions?budget=${numericBudget}`);
+
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setError("Please log in first");
+        setIsLoading(false);
+        return;
+      }
+
+      // Save budget to Firestore under userPreferences
+      await setDoc(
+        doc(db, "userPreferences", user.uid),
+        {
+          budget: numericBudget,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+
+      // Navigate to next screen with budget as backup param
+      router.push(`/restrictions?budget=${numericBudget}`);
+    } catch (err) {
+      console.error("Failed to save budget:", err);
+      setError("Failed to save budget. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   //Sets the budget to a suggested value when the user clicks on one of the chips
@@ -51,6 +80,7 @@ export default function BudgetScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.push("/travel")}
+          disabled={isLoading}
         >
           <Text style={styles.backButtonText}>Back to Travel</Text>
         </TouchableOpacity>
@@ -59,7 +89,7 @@ export default function BudgetScreen() {
         <View style={styles.card}>
           <Text style={styles.title}>Set your budget</Text>
           <Text style={styles.subtitle}>
-            Dicover places that won’t break the bank
+            Dicover places that won't break the bank
           </Text>
 
           <Text style={styles.label}>Budget</Text>
@@ -81,6 +111,7 @@ export default function BudgetScreen() {
               }}
               returnKeyType="done"
               onSubmitEditing={handleContinue}
+              editable={!isLoading}
             />
           </View>
 
@@ -95,6 +126,7 @@ export default function BudgetScreen() {
                   //if so, applies a different style to indicate that the chip is selected
                   style={[styles.chip, active && styles.chipActive]}
                   onPress={() => setQuickBudget(v)}
+                  disabled={isLoading}
                 >
                   <Text
                     style={[styles.chipText, active && styles.chipTextActive]}
@@ -109,8 +141,14 @@ export default function BudgetScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
           {/*When the user clicks continue, we validate the input and navigate to the next screen if it's valid*/}
-          <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <Text style={styles.buttonText}>Continue</Text>
+          <TouchableOpacity 
+            style={[styles.button, isLoading && styles.buttonDisabled]} 
+            onPress={handleContinue}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>
+              {isLoading ? "Saving..." : "Continue"}
+            </Text>
           </TouchableOpacity>
 
           <Text style={styles.helper}>You can update this anytime</Text>
@@ -240,6 +278,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 14,
     alignItems: "center",
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {
