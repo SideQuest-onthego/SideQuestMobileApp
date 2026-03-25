@@ -178,12 +178,9 @@ export default function DietaryScreen() {
 
    async function handleContinue() {
       setIsContinuing(true);
-      const didSave = await persistDietaryPreferences();
+      await persistDietaryPreferences();
       setIsContinuing(false);
-
-      if (didSave) {
-         router.push("/swipe");
-      }
+      router.replace("/(tabs)/home");
    }
 
    const selectedCount = state.dietaryRestrictions.length;
@@ -200,9 +197,9 @@ export default function DietaryScreen() {
          <ScrollView contentContainerStyle={styles.center}>
             <TouchableOpacity
                style={styles.backButton}
-               onPress={() => router.push("/(tabs)/explore")}
+               onPress={() => router.push("/(first-time)/restrictions")}
             >
-               <Text style={styles.backButtonText}>Back to Explore</Text>
+               <Text style={styles.backButtonText}>{"< Back"}</Text>
             </TouchableOpacity>
 
             <View style={styles.card}>
