@@ -1,5 +1,5 @@
 // frontend/components/SwipeDeck.tsx
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -19,12 +19,22 @@ const SWIPE_OUT_DURATION = 180;
 type Props = {
   data: ActivityModel[];
   onSwipeLeft?: (item: ActivityModel) => void;
+  onNearEnd?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 };
 
-export default function SwipeDeck({ data, onSwipeLeft }: Props) {
+export default function SwipeDeck({
+  data,
+  onSwipeLeft,
+  onNearEnd,
+  hasMore = false,
+  isLoadingMore = false,
+}: Props) {
   const [index, setIndex] = useState(0);
   const [showTutorial, setShowTutorial] = useState(true);
   const pan = useRef(new Animated.ValueXY()).current;
+  const lastNearEndIndex = useRef<number | null>(null);
 
   const { addPlace } = useSavedPlaces();
 
@@ -105,6 +115,22 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     }).start();
   }
 
+  useEffect(() => {
+    if (
+      !hasMore ||
+      isLoadingMore ||
+      !onNearEnd ||
+      data.length === 0 ||
+      index < Math.max(data.length - 3, 0) ||
+      lastNearEndIndex.current === index
+    ) {
+      return;
+    }
+
+    lastNearEndIndex.current = index;
+    onNearEnd();
+  }, [data.length, hasMore, index, isLoadingMore, onNearEnd]);
+
   if (index >= data.length) {
     return (
       <View style={styles.container}>
@@ -166,6 +192,11 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
           onLike={() => forceSwipe("right")}
         />
       </Animated.View>
+      {isLoadingMore ? (
+        <View style={styles.loadingMoreWrap} pointerEvents="none">
+          <Text style={styles.loadingMoreText}>Loading more places...</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -250,5 +281,21 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "900",
     letterSpacing: 1,
+  },
+
+  loadingMoreWrap: {
+    position: "absolute",
+    bottom: 28,
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+
+  loadingMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "black",
   },
 });

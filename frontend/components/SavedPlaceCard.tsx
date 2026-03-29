@@ -5,11 +5,16 @@ import type { ActivityModel } from "../types/sidequest-models";
 type SavedPlaceCardProps = {
   item: ActivityModel;
   onRemove?: (id: string) => void;
+  onPress?: (item: ActivityModel) => void;
 };
 
-export default function SavedPlaceCard({ item, onRemove }: SavedPlaceCardProps) {
+export default function SavedPlaceCard({
+  item,
+  onRemove,
+  onPress,
+}: SavedPlaceCardProps) {
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} onPress={() => onPress?.(item)}>
       {/* Left: Image */}
       {item.links?.imageUrl ? (
         <Image source={{ uri: item.links.imageUrl }} style={styles.image} />
@@ -30,13 +35,16 @@ export default function SavedPlaceCard({ item, onRemove }: SavedPlaceCardProps) 
 
         {/* Remove button */}
         <Pressable
-          onPress={() => onRemove?.(item.id)}
+          onPress={(event) => {
+            event.stopPropagation();
+            onRemove?.(item.id);
+          }}
           style={styles.removeButton}
         >
           <Text style={styles.removeText}>Remove</Text>
         </Pressable>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
