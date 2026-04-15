@@ -34,7 +34,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 12,
-    backgroundColor: "#CFDAF1",
+    backgroundColor: "#DBFEF7",
   },
   emptyText: {
     textAlign: "center",

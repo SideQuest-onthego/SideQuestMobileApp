@@ -1,7 +1,9 @@
 import { useRouter } from "expo-router";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AuthBackground from "@/components/AuthBackground";
+import { auth, db } from "@/FirebaseConfig";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function RestrictionsScreen() {
   const router = useRouter();
@@ -9,21 +11,8 @@ export default function RestrictionsScreen() {
   const [selected, setSelected] = useState<string[]>([]);
   const [dietFilter, setDietFilter] = useState<boolean | null>(null);
 
-  const toggleOption = (option: string) => {
-    if (selected.includes(option)) {
-      setSelected(selected.filter((o) => o !== option));
-    } else {
-      setSelected([...selected, option]);
-    }
-  };
-
-  const handleNext = () => {
-    if (dietFilter === true) {
-      router.push("/(first-time)/dietary");
-    } else {
-      router.push("/(tabs)/home");
-    }
-  };
+  const [accessibilityError, setAccessibilityError] = useState(false);
+  const [dietError, setDietError] = useState(false);
 
   const options = [
     "Wheelchair Access",
@@ -32,6 +21,76 @@ export default function RestrictionsScreen() {
     "Seating",
     "Parking",
   ];
+
+  // Load saved accessibility preferences from Firestore
+  useEffect(() => {
+    const loadPreferences = async () => {
+      if (!auth.currentUser) return;
+
+      try {
+        const ref = doc(db, "userPreferences", auth.currentUser.uid);
+        const snap = await getDoc(ref);
+
+        if (snap.exists()) {
+          const data = snap.data();
+
+          if (Array.isArray(data.accessibilityNeeds)) {
+            setSelected(data.accessibilityNeeds);
+          }
+        }
+      } catch (err) {
+        console.log("Error loading accessibility preferences:", err);
+      }
+    };
+
+    loadPreferences();
+  }, []);
+
+  const toggleOption = (option: string) => {
+    if (selected.includes(option)) {
+      setSelected(selected.filter((o) => o !== option));
+    } else {
+      setSelected([...selected, option]);
+    }
+
+    setAccessibilityError(false);
+  };
+
+  const handleNext = async () => {
+    let hasError = false;
+
+    if (selected.length === 0) {
+      setAccessibilityError(true);
+      hasError = true;
+    }
+
+    if (dietFilter === null) {
+      setDietError(true);
+      hasError = true;
+    }
+
+    if (hasError) return;
+
+    // Save accessibility preferences to Firestore
+    try {
+      if (auth.currentUser) {
+        const ref = doc(db, "userPreferences", auth.currentUser.uid);
+        await setDoc(
+          ref,
+          { accessibilityNeeds: selected },
+          { merge: true }
+        );
+      }
+    } catch (err) {
+      console.log("Error saving accessibility preferences:", err);
+    }
+
+    if (dietFilter === true) {
+      router.push("/(first-time)/dietary");
+    } else {
+      router.push("/(tabs)/home");
+    }
+  };
 
   return (
     <AuthBackground variant="tl">
@@ -73,6 +132,12 @@ export default function RestrictionsScreen() {
             })}
           </View>
 
+          {accessibilityError && (
+            <Text style={styles.errorText}>
+              Please select at least one accessibility option.
+            </Text>
+          )}
+
           <Text style={[styles.label, { marginTop: 20 }]}>
             Would you like to filter based on diet?
           </Text>
@@ -84,7 +149,10 @@ export default function RestrictionsScreen() {
                 { borderColor: "#000" },
                 dietFilter === true && styles.chipActive,
               ]}
-              onPress={() => setDietFilter(true)}
+              onPress={() => {
+                setDietFilter(true);
+                setDietError(false);
+              }}
             >
               <Text
                 style={[
@@ -102,7 +170,10 @@ export default function RestrictionsScreen() {
                 { borderColor: "#000" },
                 dietFilter === false && styles.chipActive,
               ]}
-              onPress={() => setDietFilter(false)}
+              onPress={() => {
+                setDietFilter(false);
+                setDietError(false);
+              }}
             >
               <Text
                 style={[
@@ -115,6 +186,12 @@ export default function RestrictionsScreen() {
             </TouchableOpacity>
           </View>
 
+          {dietError && (
+            <Text style={styles.errorText}>
+              Please choose Yes or No for the diet filter.
+            </Text>
+          )}
+
           <TouchableOpacity style={styles.button} onPress={handleNext}>
             <Text style={styles.buttonText}>Continue</Text>
           </TouchableOpacity>
@@ -125,11 +202,6 @@ export default function RestrictionsScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-
   center: {
     flex: 1,
     justifyContent: "center",
@@ -195,10 +267,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
 
-  /* changed blue → black */
   chipActive: {
-    backgroundColor: "#5a8bff",
-    borderColor: "#5a8bff",
+    backgroundColor: "#0d8474",
+    borderColor: "#0d8474",
   },
 
   chipText: {
@@ -209,7 +280,12 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
 
-  /* centered button */
+  errorText: {
+    color: "red",
+    marginTop: 8,
+    fontWeight: "600",
+  },
+
   button: {
     marginTop: 24,
     backgroundColor: "#000000",

@@ -1,6 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LogoutButton } from "@/components/logout-button";
 import { auth, db } from "@/FirebaseConfig";
+import { useLocation } from "@/context/LocationContext";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -24,32 +25,31 @@ const ACCESSIBILITY_OPTIONS = [
    "Wheelchair Access",
    "Quiet Space",
    "Elevator Access",
+   "Seating",
    "Parking",
 ];
 
 //State management for user preferences using useReducer
 type PreferencesState = {
-   distance: number;
    budget: number;
    dietaryRestrictions: string[];
    accessibilityNeeds: string[];
 };
 
 type PreferencesDocument = PreferencesState & {
+   distance?: number; // Distance from Firestore
    updatedAt?: unknown;
 };
 
 //Action types for updating preferences state
 type Action =
-   | { type: "SET_DISTANCE"; value: number }
    | { type: "SET_BUDGET"; value: number }
    | { type: "TOGGLE_DIETARY"; value: string }
    | { type: "TOGGLE_ACCESSIBILITY"; value: string }
    | { type: "REPLACE_ALL"; value: PreferencesState };
 
-//Initial state for preferences with default values
+//Initial state for preferences with default values (distance is now in LocationContext)
 const initialState: PreferencesState = {
-   distance: 10,
    budget: 25,
    dietaryRestrictions: [],
    accessibilityNeeds: [],
@@ -68,9 +68,6 @@ function preferencesReducer(
    action: Action,
 ): PreferencesState {
    switch (action.type) {
-      case "SET_DISTANCE":
-         return { ...state, distance: action.value };
-
       case "SET_BUDGET":
          return { ...state, budget: action.value };
 
@@ -103,6 +100,10 @@ function preferencesReducer(
 //Main account screen component
 export default function AccountScreen() {
    const router = useRouter();
+   
+   // Get distance from LocationContext (synced across all screens)
+   const { radiusMiles, setRadiusMiles } = useLocation();
+   
    const [displayName, setDisplayName] = useState("your_name");
    const [state, dispatch] = useReducer(preferencesReducer, initialState);
    const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
@@ -118,6 +119,7 @@ export default function AccountScreen() {
 
          if (!user) {
             dispatch({ type: "REPLACE_ALL", value: initialState });
+            setRadiusMiles(10); // Reset distance to default
             setHasLoadedPreferences(true);
             setSaveError("");
             return;
@@ -131,13 +133,15 @@ export default function AccountScreen() {
 
             if (snapshot.exists()) {
                const data = snapshot.data() as Partial<PreferencesDocument>;
+               
+               // Sync distance from Firestore to LocationContext
+               if (typeof data.distance === "number") {
+                  setRadiusMiles(data.distance);
+               }
+
                dispatch({
                   type: "REPLACE_ALL",
                   value: {
-                     distance:
-                        typeof data.distance === "number"
-                           ? data.distance
-                           : initialState.distance,
                      budget:
                         typeof data.budget === "number"
                            ? data.budget
@@ -171,8 +175,9 @@ export default function AccountScreen() {
       });
 
       return unsubscribe;
-   }, []);
+   }, [setRadiusMiles]);
 
+   // Save preferences to Firestore whenever they change
    useEffect(() => {
       if (!hasLoadedPreferences || !auth.currentUser) {
          return;
@@ -184,6 +189,7 @@ export default function AccountScreen() {
                doc(db, "userPreferences", auth.currentUser!.uid),
                {
                   ...state,
+                  distance: radiusMiles, // Include distance from context
                   updatedAt: serverTimestamp(),
                },
                { merge: true },
@@ -196,7 +202,7 @@ export default function AccountScreen() {
       }, 400);
 
       return () => clearTimeout(timeoutId);
-   }, [hasLoadedPreferences, state]);
+   }, [hasLoadedPreferences, state, radiusMiles]);
 
    useFocusEffect(
       useCallback(() => {
@@ -233,27 +239,26 @@ export default function AccountScreen() {
          <Text style={styles.welcomeText}>Welcome {displayName}</Text>
          {saveError ? <Text style={styles.statusText}>{saveError}</Text> : null}
 
-         {/* Distance preference card*/}
+         {/* Distance preference card - NOW SYNCED WITH MAP AND DISTANCE SCREENS */}
          <View style={styles.card}>
             <View style={styles.sliderHeader}>
                <Text style={styles.cardTitle}>Distance</Text>
-               <Text style={styles.sliderValue}>{state.distance} mi</Text>
+               <Text style={styles.sliderValue}>{radiusMiles} mi</Text>
             </View>
-            {/* Slider for adjusting distance preference */}
+            {/* Slider for adjusting distance preference - updates LocationContext */}
             <Slider
                style={styles.slider}
-               minimumValue={1}
-               maximumValue={100}
-               step={1}
-               value={state.distance}
-               onValueChange={(value) =>
-                  dispatch({ type: "SET_DISTANCE", value })
-               }
+               minimumValue={0.5}
+               maximumValue={50}
+               step={0.5}
+               value={radiusMiles}
+               onValueChange={(value) => setRadiusMiles(value)}
                minimumTrackTintColor="#102C26"
                maximumTrackTintColor="#D1D5DB"
                thumbTintColor="#102C26"
             />
          </View>
+
          {/* Budget preference card*/}
          <View style={styles.card}>
             <View style={styles.sliderHeader}>
