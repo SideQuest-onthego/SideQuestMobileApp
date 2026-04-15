@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { auth, db } from "@/FirebaseConfig";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import AuthBackground from "@/components/AuthBackground";
 
 const TRAVEL_OPTIONS = [
@@ -19,6 +21,7 @@ export default function TravelScreen() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const toggleOption = (id: string) => {
     setSelected((prev) =>
@@ -27,13 +30,40 @@ export default function TravelScreen() {
     if (error) setError("");
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (selected.length === 0) {
       setError("Please select at least one travel method");
       return;
     }
+
+    setIsLoading(true);
     setError("");
-    router.push("/(first-time)/budget");
+
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        setError("Please log in first");
+        setIsLoading(false);
+        return;
+      }
+
+      // Save travel preferences to Firestore under userPreferences
+      await setDoc(
+        doc(db, "userPreferences", user.uid),
+        {
+          travelPreferences: selected,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      router.push("/(first-time)/budget");
+    } catch (err) {
+      console.error("Failed to save travel preferences:", err);
+      setError("Failed to save preferences. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -42,6 +72,7 @@ export default function TravelScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.push("/(first-time)/distance")}
+          disabled={isLoading}
         >
           <Text style={styles.backButtonText}>Back to Distance</Text>
         </TouchableOpacity>
@@ -63,6 +94,7 @@ export default function TravelScreen() {
                     active && styles.optionButtonActive,
                   ]}
                   onPress={() => toggleOption(option.id)}
+                  disabled={isLoading}
                 >
                   <Text style={styles.optionIcon}>{option.icon}</Text>
                   <Text
@@ -80,8 +112,14 @@ export default function TravelScreen() {
 
           {error ? <Text style={styles.error}>{error}</Text> : null}
 
-          <TouchableOpacity style={styles.button} onPress={handleContinue}>
-            <Text style={styles.buttonText}>Continue</Text>
+          <TouchableOpacity
+            style={[styles.button, isLoading && styles.buttonDisabled]}
+            onPress={handleContinue}
+            disabled={isLoading}
+          >
+            <Text style={styles.buttonText}>
+              {isLoading ? "Saving..." : "Continue"}
+            </Text>
           </TouchableOpacity>
 
           <Text style={styles.helper}>You can update this anytime</Text>
@@ -185,6 +223,10 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 14,
     alignItems: "center",
+  },
+
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   buttonText: {
