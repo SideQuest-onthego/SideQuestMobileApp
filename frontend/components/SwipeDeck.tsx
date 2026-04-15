@@ -47,13 +47,6 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
           useNativeDriver: false,
         }),
 
-        // then move back to the right
-        //Animated.timing(pan.x, {
-        //toValue: 65,
-        //duration: 460,
-        //useNativeDriver: false,
-        //}),
-
         // return to center
         Animated.spring(pan.x, {
           toValue: 0,
