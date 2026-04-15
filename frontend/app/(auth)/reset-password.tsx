@@ -8,17 +8,24 @@ import {
    KeyboardAvoidingView,
    Platform,
    ScrollView,
+   ActivityIndicator,
+   Alert,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { confirmPasswordReset } from "firebase/auth";
+import { auth } from "../../FirebaseConfig";
 
 export default function ResetPasswordScreen() {
    const router = useRouter();
+   const { oobCode } = useLocalSearchParams();
 
    const [password, setPassword] = useState("");
    const [confirmPassword, setConfirmPassword] = useState("");
    const [error, setError] = useState("");
+   const [loading, setLoading] = useState(false);
 
-   function handleReset() {
+   async function handleReset() {
+      setError("");
 
       if (!password || !confirmPassword) {
          setError("Please fill out all fields.");
@@ -30,7 +37,38 @@ export default function ResetPasswordScreen() {
          return;
       }
 
-      router.replace("/(auth)/login");
+      if (password.length < 6) {
+         setError("Password must be at least 6 characters.");
+         return;
+      }
+
+      if (!oobCode || typeof oobCode !== "string") {
+         setError("Invalid reset session. Please start over.");
+         return;
+      }
+
+      setLoading(true);
+
+      try {
+         await confirmPasswordReset(auth, oobCode, password);
+         Alert.alert(
+            "Password Reset",
+            "Your password has been successfully reset.",
+            [{ text: "OK", onPress: () => router.replace("/(auth)/login") }]
+         );
+      } catch (err: any) {
+         if (err.code === "auth/expired-action-code") {
+            setError("This reset link has expired. Please request a new one.");
+         } else if (err.code === "auth/invalid-action-code") {
+            setError("Invalid reset code. Please request a new password reset.");
+         } else if (err.code === "auth/weak-password") {
+            setError("Password is too weak. Please use a stronger password.");
+         } else {
+            setError("Failed to reset password. Please try again.");
+         }
+      } finally {
+         setLoading(false);
+      }
    }
 
    return (
@@ -72,8 +110,16 @@ export default function ResetPasswordScreen() {
 
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                  <TouchableOpacity style={styles.button} onPress={handleReset}>
-                     <Text style={styles.buttonText}>Change Password</Text>
+                  <TouchableOpacity
+                     style={styles.button}
+                     onPress={handleReset}
+                     disabled={loading}
+                  >
+                     {loading ? (
+                        <ActivityIndicator color="#fff" />
+                     ) : (
+                        <Text style={styles.buttonText}>Change Password</Text>
+                     )}
                   </TouchableOpacity>
                </View>
 

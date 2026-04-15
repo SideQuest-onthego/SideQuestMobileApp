@@ -8,8 +8,11 @@ import {
    KeyboardAvoidingView,
    Platform,
    ScrollView,
+   ActivityIndicator,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { verifyPasswordResetCode } from "firebase/auth";
+import { auth } from "../../FirebaseConfig";
 
 export default function VerifyCodeScreen() {
    const router = useRouter();
@@ -17,17 +20,36 @@ export default function VerifyCodeScreen() {
 
    const [code, setCode] = useState("");
    const [error, setError] = useState("");
+   const [loading, setLoading] = useState(false);
 
-   function handleVerify() {
+   async function handleVerify() {
+      setError("");
+
       if (!code) {
          setError("Please enter the verification code.");
          return;
       }
 
-      router.push({
-         pathname: "/(auth)/reset-password",
-         params: { email },
-      } as any);
+      setLoading(true);
+
+      try {
+         // Verify the oobCode is valid and get the associated email
+         await verifyPasswordResetCode(auth, code);
+         router.push({
+            pathname: "/(auth)/reset-password",
+            params: { email, oobCode: code },
+         } as any);
+      } catch (err: any) {
+         if (err.code === "auth/invalid-action-code") {
+            setError("Invalid or expired code. Please request a new one.");
+         } else if (err.code === "auth/expired-action-code") {
+            setError("This code has expired. Please request a new one.");
+         } else {
+            setError("Verification failed. Please check the code and try again.");
+         }
+      } finally {
+         setLoading(false);
+      }
    }
 
    return (
@@ -50,20 +72,33 @@ export default function VerifyCodeScreen() {
                <View style={styles.card}>
                   <Text style={styles.title}>Verify Code</Text>
 
+                  <Text style={styles.instructions}>
+                     Check your email for a password reset link. Copy the code from the link (the value after &quot;oobCode=&quot;).
+                  </Text>
+
                   <Text style={styles.label}>Verification Code</Text>
                   <TextInput
                      style={styles.input}
-                     placeholder="Enter code from email"
+                     placeholder="Paste code from email link"
                      placeholderTextColor="#aaa"
-                     keyboardType="number-pad"
+                     autoCapitalize="none"
+                     autoCorrect={false}
                      value={code}
                      onChangeText={setCode}
                   />
 
                   {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-                  <TouchableOpacity style={styles.button} onPress={handleVerify}>
-                     <Text style={styles.buttonText}>Verify Code</Text>
+                  <TouchableOpacity
+                     style={styles.button}
+                     onPress={handleVerify}
+                     disabled={loading}
+                  >
+                     {loading ? (
+                        <ActivityIndicator color="#fff" />
+                     ) : (
+                        <Text style={styles.buttonText}>Verify Code</Text>
+                     )}
                   </TouchableOpacity>
                </View>
             </View>
@@ -100,6 +135,12 @@ const styles = StyleSheet.create({
       elevation: 5,
    },
    title: { fontSize: 26, fontWeight: "800", color: "#2D6A4F", marginBottom: 10 },
+   instructions: {
+      fontSize: 14,
+      color: "#555",
+      marginBottom: 16,
+      lineHeight: 20,
+   },
    label: { fontSize: 13, fontWeight: "600", color: "#2D6A4F", marginBottom: 6 },
    input: { backgroundColor: "#F4F4F4", borderRadius: 12, padding: 14 },
    button: {

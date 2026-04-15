@@ -11,6 +11,8 @@ import {
    ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "../../FirebaseConfig";
 
 export default function ForgotPasswordScreen() {
    const router = useRouter();
@@ -29,13 +31,23 @@ export default function ForgotPasswordScreen() {
 
       setLoading(true);
 
-      setTimeout(() => {
-         setLoading(false);
+      try {
+         await sendPasswordResetEmail(auth, email);
          router.push({
             pathname: "/(auth)/verify-code",
             params: { email },
          } as any);
-      }, 1200);
+      } catch (err: any) {
+         if (err.code === "auth/user-not-found") {
+            setError("No account found with this email.");
+         } else if (err.code === "auth/invalid-email") {
+            setError("Please enter a valid email address.");
+         } else {
+            setError("Failed to send reset email. Please try again.");
+         }
+      } finally {
+         setLoading(false);
+      }
    }
 
    return (
