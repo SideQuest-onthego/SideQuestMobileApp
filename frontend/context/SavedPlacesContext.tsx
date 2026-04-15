@@ -12,7 +12,25 @@ type SavedPlacesContextType = {
   removePlace: (placeId: string) => void;
 };
 
+
 const SavedPlacesContext = createContext<SavedPlacesContextType | undefined>(undefined);
+
+// removes any undefined object properties
+function stripUndefined<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map(stripUndefined) as T;
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([, nestedValue]) => nestedValue !== undefined)
+        .map(([key, nestedValue]) => [key, stripUndefined(nestedValue)]),
+    ) as T;
+  }
+
+  return value;
+}
 
 export function useSavedPlaces() {
   const context = useContext(SavedPlacesContext);
@@ -57,7 +75,11 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const saveToFirestore = async (places: ActivityModel[]) => {
     if (!user) return;
     try {
-      await setDoc(doc(db, "savedPlaces", user.uid), { saved: places }, { merge: true });
+      await setDoc(
+        doc(db, "savedPlaces", user.uid),
+        { saved: stripUndefined(places) },
+        { merge: true },
+      );
       console.log("Saved places to Firestore:", places);
     } catch (e) {
       console.error("Failed to update Firestore:", e);
