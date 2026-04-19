@@ -61,6 +61,7 @@ export default function MapScreen() {
 
   // Local state for smooth dragging; syncs from context when other screen changes it
   const [localRadius, setLocalRadius] = useState<number>(radiusMiles);
+  const [routeVisible, setRouteVisible] = useState<boolean>(true);
 
   useEffect(() => {
     setLocalRadius(radiusMiles);
@@ -108,6 +109,8 @@ export default function MapScreen() {
   } | null>(null);
   const [sliderVisible, setSliderVisible] = useState<boolean>(false);
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
+  const [selectedMarker, setSelectedMarker] = useState<Place | null>(null);
+  const [markerDetailModalVisible, setMarkerDetailModalVisible] = useState<boolean>(false);
   const mapRef = useRef<any>(null);
   const paramsApplied = useRef(false);
 
@@ -190,7 +193,7 @@ export default function MapScreen() {
   }
 
   const MapView = require("react-native-maps").default;
-  const { Polygon, Marker, Circle } = require("react-native-maps");
+  const { Polygon, Marker, Circle, Polyline } = require("react-native-maps");
 
   const defaultCenter = { latitude: 40.7128, longitude: -74.006 };
   const mapCenter = userLocation || defaultCenter;
@@ -214,6 +217,51 @@ export default function MapScreen() {
         ) <= localRadius
       )
     : places;
+
+  // Calculate total route distance (starting from user location if available)
+  const calculateRouteDistance = () => {
+    const waypoints = userLocation 
+      ? [userLocation, ...visiblePlaces.map((p) => p.coordinate)]
+      : visiblePlaces.map((p) => p.coordinate);
+    
+    if (waypoints.length < 2) return 0;
+    
+    let totalDistance = 0;
+    for (let i = 0; i < waypoints.length - 1; i++) {
+      totalDistance += getDistanceMiles(
+        waypoints[i].latitude,
+        waypoints[i].longitude,
+        waypoints[i + 1].latitude,
+        waypoints[i + 1].longitude
+      );
+    }
+    return Math.round(totalDistance * 10) / 10;
+  };
+
+  const routeDistance = calculateRouteDistance();
+
+  // Calculate train travel time (average train speed: ~40 mph)
+  const calculateTrainTravelTime = () => {
+    const TRAIN_SPEED_MPH = 40; // Average commuter/regional train speed
+    const hours = routeDistance / TRAIN_SPEED_MPH;
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    
+    if (wholeHours === 0) {
+      return `${minutes} min`;
+    } else if (minutes === 0) {
+      return `${wholeHours}h`;
+    } else {
+      return `${wholeHours}h ${minutes}m`;
+    }
+  };
+
+  const trainTravelTime = calculateTrainTravelTime();
+
+  // Build route coordinates (starting from user location if available)
+  const routeCoordinates = userLocation
+    ? [userLocation, ...visiblePlaces.map((p) => p.coordinate)]
+    : visiblePlaces.map((p) => p.coordinate);
 
   async function handleAddCurrentLocation() {
     setLoadingLocation(true);
@@ -414,6 +462,74 @@ export default function MapScreen() {
     );
   }
 
+  // Calculate distance and train time to a specific location
+  function getDistanceAndTimeToPlace(place: Place): { distance: number; time: string; display: string } {
+    if (!userLocation) {
+      return { distance: 0, time: "N/A", display: "N/A" };
+    }
+
+    const distance = getDistanceMiles(
+      userLocation.latitude,
+      userLocation.longitude,
+      place.coordinate.latitude,
+      place.coordinate.longitude
+    );
+
+    const TRAIN_SPEED_MPH = 40;
+    const hours = distance / TRAIN_SPEED_MPH;
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+
+    let time: string;
+    if (wholeHours === 0) {
+      time = `${minutes} min`;
+    } else if (minutes === 0) {
+      time = `${wholeHours}h`;
+    } else {
+      time = `${wholeHours}h ${minutes}m`;
+    }
+
+    const roundedDistance = Math.round(distance * 10) / 10;
+    const display = `You → ${place.title}: ${roundedDistance} mi (${time})`;
+
+    return { 
+      distance: roundedDistance, 
+      time,
+      display
+    };
+  }
+
+  // Handle marker press
+  function handleMarkerPress(place: Place) {
+    setSelectedMarker(place);
+    setMarkerDetailModalVisible(true);
+  }
+
+  // Handle delete location
+  function handleDeleteLocation() {
+    if (!selectedMarker) return;
+    
+    // TODO: Connect to your SavedPlacesContext to delete the place
+    // For now, this is a placeholder - you'll need to implement the actual delete
+    Alert.alert(
+      "Delete Location",
+      `Are you sure you want to delete "${selectedMarker.title}"?`,
+      [
+        { text: "Cancel", onPress: () => {}, style: "cancel" },
+        {
+          text: "Delete",
+          onPress: () => {
+            // Call your delete function from SavedPlacesContext here
+            console.log("Delete place:", selectedMarker.id);
+            setMarkerDetailModalVisible(false);
+            setSelectedMarker(null);
+          },
+          style: "destructive",
+        },
+      ]
+    );
+  }
+
   return (
     <View style={styles.container}>
       <MapView
@@ -451,6 +567,16 @@ export default function MapScreen() {
           />
         )}
 
+        {/* Route polyline */}
+        {routeVisible && routeCoordinates.length >= 1 && visiblePlaces.length > 0 && (
+          <Polyline
+            coordinates={routeCoordinates}
+            strokeColor="#FF6600"
+            strokeWidth={4}
+            lineDashPattern={[0]}
+          />
+        )}
+
         {visiblePlaces.map((place: Place) => (
           <Marker
             key={place.id}
@@ -464,6 +590,7 @@ export default function MapScreen() {
             }
             title={place.title}
             description={place.description}
+            onPress={() => handleMarkerPress(place)}
           />
         ))}
       </MapView>
@@ -524,6 +651,29 @@ export default function MapScreen() {
 
       {/* Bottom controls */}
       <View style={styles.bottomPanel}>
+        {/* Route Toggle Button */}
+        {routeCoordinates.length >= 1 && visiblePlaces.length > 0 && (
+          <TouchableOpacity
+            style={styles.routeToggleBtn}
+            onPress={() => setRouteVisible(!routeVisible)}
+          >
+            <Text style={styles.routeToggleBtnText}>
+              {routeVisible ? "Hide Route" : "Show Route"}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Travel Distance Display */}
+        {routeCoordinates.length >= 1 && visiblePlaces.length > 0 && (
+          <View style={styles.distanceDisplay}>
+            <View>
+              <Text style={styles.distanceText}>Travel Distance: {routeDistance} miles</Text>
+              <Text style={styles.trainTimeText}>🚂 By Train: {trainTravelTime}</Text>
+            </View>
+            <Text style={styles.distanceChevron}>▲</Text>
+          </View>
+        )}
+
         <TouchableOpacity
           style={styles.sliderToggle}
           onPress={() => setSliderVisible((v) => !v)}
@@ -698,6 +848,53 @@ export default function MapScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Marker Detail Modal */}
+      <Modal
+        visible={markerDetailModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setMarkerDetailModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={styles.modalDismiss}
+            activeOpacity={1}
+            onPress={() => setMarkerDetailModalVisible(false)}
+          />
+          {selectedMarker && (
+            <View style={styles.modalCard}>
+              <Text style={styles.modalTitle}>{selectedMarker.title}</Text>
+              <Text style={styles.modalSubtitle}>{selectedMarker.description}</Text>
+
+              {userLocation && (
+                <>
+                  <View style={styles.travelInfoContainer}>
+                    <Text style={styles.travelInfoText}>
+                      🚂 {getDistanceAndTimeToPlace(selectedMarker).display}
+                    </Text>
+                  </View>
+                </>
+              )}
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => setMarkerDetailModalVisible(false)}
+                >
+                  <Text style={styles.cancelBtnText}>Close</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.saveBtn, styles.deleteBtn]}
+                  onPress={handleDeleteLocation}
+                >
+                  <Text style={[styles.saveBtnText, styles.deleteBtnText]}>Delete</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -760,6 +957,52 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     gap: 10,
+  },
+  routeToggleBtn: {
+    backgroundColor: "#FF6600",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  routeToggleBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  distanceDisplay: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.97)",
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  distanceText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  trainTimeText: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
+    fontWeight: "500",
+  },
+  distanceChevron: {
+    fontSize: 12,
+    color: "#999",
   },
   sliderToggle: {
     flexDirection: "row",
@@ -915,4 +1158,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveBtnText: { fontSize: 15, color: "#000", fontWeight: "700" },
+  travelInfoContainer: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    padding: 14,
+    marginVertical: 20,
+    alignItems: "center",
+  },
+  travelInfoText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+  },
+  deleteBtn: {
+    backgroundColor: "#FF4444",
+  },
+  deleteBtnText: {
+    color: "#fff",
+  },
 });
