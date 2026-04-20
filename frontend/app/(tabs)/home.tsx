@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import SwipeDeck from "../../components/SwipeDeck";
+import { useLocation } from "../../context/LocationContext";
 import { places } from "../../data/places";
 import type { ActivityModel } from "../../types/sidequest-models";
-import { fetchNearbyManhattanPlacesPage } from "../../services/googlePlaces";
+import { fetchNearbyPlacesPage } from "../../services/googlePlaces";
 import {
   DEFAULT_PREFERENCES,
   loadUserSearchPreferences,
@@ -15,6 +16,7 @@ const MILES_TO_METERS = 1609.34;
 // HOME TAB PAGE
 
 export default function HomeScreen() {
+  const { userLocation, radiusMiles } = useLocation();
   const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -25,10 +27,23 @@ export default function HomeScreen() {
     let mounted = true;
 
     async function loadPlaces() {
+      setLoading(true);
+      setError(null);
+      setNextCursor(0);
       try {
         const preferences = await loadUserSearchPreferences();
-        const firstPage = await fetchNearbyManhattanPlacesPage(
-          preferences.distance * MILES_TO_METERS,
+        const searchCenter = userLocation
+          ? {
+              lat: userLocation.latitude,
+              lng: userLocation.longitude,
+            }
+          : {
+              lat: 40.7831,
+              lng: -73.9712,
+            };
+        const firstPage = await fetchNearbyPlacesPage(
+          searchCenter,
+          radiusMiles * MILES_TO_METERS,
           0,
         );
         if (!mounted) return;
@@ -38,6 +53,11 @@ export default function HomeScreen() {
         } else {
           setData(rankPlacesByPreferences(places, preferences));
           setNextCursor(null);
+          setError(
+            userLocation
+              ? "No live places matched this location and distance, so showing fallback recommendations."
+              : "No live places matched the default area, so showing fallback recommendations.",
+          );
         }
       } catch (e) {
         if (!mounted) return;
@@ -54,7 +74,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [radiusMiles, userLocation]);
 
   async function handleLoadMore() {
     if (loading || isLoadingMore || nextCursor === null) {
@@ -65,8 +85,18 @@ export default function HomeScreen() {
 
     try {
       const preferences = await loadUserSearchPreferences();
-      const page = await fetchNearbyManhattanPlacesPage(
-        preferences.distance * MILES_TO_METERS,
+      const searchCenter = userLocation
+        ? {
+            lat: userLocation.latitude,
+            lng: userLocation.longitude,
+          }
+        : {
+            lat: 40.7831,
+            lng: -73.9712,
+          };
+      const page = await fetchNearbyPlacesPage(
+        searchCenter,
+        radiusMiles * MILES_TO_METERS,
         nextCursor,
       );
 
@@ -91,7 +121,11 @@ export default function HomeScreen() {
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
-          <Text style={styles.loadingText}>Loading nearby Manhattan places...</Text>
+          <Text style={styles.loadingText}>
+            {userLocation
+              ? `Loading places within ${radiusMiles} miles of your selected location...`
+              : "Loading places near the default area..."}
+          </Text>
         </View>
         ) : (
         <>
