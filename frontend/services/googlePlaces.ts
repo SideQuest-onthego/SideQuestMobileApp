@@ -22,6 +22,11 @@ export type NearbyPlacesPage = {
   nextCursor: number | null;
 };
 
+type SearchCenter = {
+  lat: number;
+  lng: number;
+};
+
 type GooglePlace = {
   id: string;
   displayName?: {
@@ -35,9 +40,9 @@ type GooglePlace = {
   };
   types?: string[];
   primaryType?: string;
-  photos?: Array<{
+  photos?: {
     name: string;
-  }>;
+  }[];
   priceLevel?:
     | "PRICE_LEVEL_UNSPECIFIED"
     | "PRICE_LEVEL_FREE"
@@ -107,20 +112,20 @@ function metersToLongitudeDegrees(meters: number, latitude: number) {
   return meters / (111320 * Math.cos((latitude * Math.PI) / 180));
 }
 
-function buildSearchCenters(radiusMeters: number) {
+function buildSearchCenters(radiusMeters: number, origin: SearchCenter) {
   const offsetMeters = Math.max(
     Math.min(radiusMeters / 2, 15000),
     5000,
   );
   const latOffset = metersToLatitudeDegrees(offsetMeters);
-  const lngOffset = metersToLongitudeDegrees(offsetMeters, MANHATTAN_COORDS.lat);
+  const lngOffset = metersToLongitudeDegrees(offsetMeters, origin.lat);
 
   return [
-    MANHATTAN_COORDS,
-    { lat: MANHATTAN_COORDS.lat + latOffset, lng: MANHATTAN_COORDS.lng },
-    { lat: MANHATTAN_COORDS.lat - latOffset, lng: MANHATTAN_COORDS.lng },
-    { lat: MANHATTAN_COORDS.lat, lng: MANHATTAN_COORDS.lng + lngOffset },
-    { lat: MANHATTAN_COORDS.lat, lng: MANHATTAN_COORDS.lng - lngOffset },
+    origin,
+    { lat: origin.lat + latOffset, lng: origin.lng },
+    { lat: origin.lat - latOffset, lng: origin.lng },
+    { lat: origin.lat, lng: origin.lng + lngOffset },
+    { lat: origin.lat, lng: origin.lng - lngOffset },
   ];
 }
 
@@ -132,8 +137,8 @@ function getCacheKey(
   return `${radiusMeters}:${includedType}:${center.lat.toFixed(4)}:${center.lng.toFixed(4)}`;
 }
 
-function buildSearchPlan(radiusMeters: number) {
-  const searchCenters = buildSearchCenters(radiusMeters);
+function buildSearchPlan(radiusMeters: number, origin: SearchCenter) {
+  const searchCenters = buildSearchCenters(radiusMeters, origin);
   return INCLUDED_TYPES.flatMap((includedType) =>
     searchCenters.map((center) => ({ includedType, center })),
   );
@@ -177,6 +182,14 @@ export async function fetchNearbyManhattanPlacesPage(
   radiusMeters = TEN_MILES_IN_METERS,
   cursor = 0,
 ): Promise<NearbyPlacesPage> {
+  return fetchNearbyPlacesPage(MANHATTAN_COORDS, radiusMeters, cursor);
+}
+
+export async function fetchNearbyPlacesPage(
+  center: SearchCenter,
+  radiusMeters = TEN_MILES_IN_METERS,
+  cursor = 0,
+): Promise<NearbyPlacesPage> {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -201,7 +214,7 @@ export async function fetchNearbyManhattanPlacesPage(
     "places.priceLevel",
   ].join(",");
 
-  const searchPlan = buildSearchPlan(safeRadiusMeters);
+  const searchPlan = buildSearchPlan(safeRadiusMeters, center);
   const requestSlice = searchPlan.slice(cursor, cursor + REQUESTS_PER_PAGE);
 
   const requests = requestSlice.map(async ({ includedType, center }) => {
