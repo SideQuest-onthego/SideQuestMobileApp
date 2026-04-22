@@ -1,5 +1,5 @@
 // frontend/components/SwipeDeck.tsx
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Dimensions,
@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import PlaceCard from "./PlaceCard";
-import { useSavedPlaces } from "../context/SavedPlacesContext"; // ✅ import context
+import { useSavedPlaces } from "../context/SavedPlacesContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const SWIPE_THRESHOLD = 0.25 * SCREEN_WIDTH;
@@ -19,14 +19,56 @@ const SWIPE_OUT_DURATION = 180;
 type Props = {
   data: ActivityModel[];
   onSwipeLeft?: (item: ActivityModel) => void;
+  onNearEnd?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 };
 
-export default function SwipeDeck({ data, onSwipeLeft }: Props) {
+export default function SwipeDeck({
+  data,
+  onSwipeLeft,
+  onNearEnd,
+  hasMore = false,
+  isLoadingMore = false,
+}: Props) {
   const [index, setIndex] = useState(0);
-  const [showTutorial, setShowTutorial] = useState(true);
+  const [hasPlayedHint, setHasPlayedHint] = useState(false);
   const pan = useRef(new Animated.ValueXY()).current;
+  const lastNearEndIndex = useRef<number | null>(null);
 
   const { addPlace } = useSavedPlaces();
+
+  useEffect(() => {
+    if (index === 0 && !hasPlayedHint) {
+      Animated.sequence([
+        Animated.delay(350),
+
+        // move slightly to the right
+        Animated.timing(pan.x, {
+          toValue: 70,
+          duration: 460,
+          useNativeDriver: false,
+        }),
+
+        // then move slightly to the left
+        Animated.timing(pan.x, {
+          toValue: -75,
+          duration: 520,
+          useNativeDriver: false,
+        }),
+
+        // return to center
+        Animated.spring(pan.x, {
+          toValue: 0,
+          useNativeDriver: false,
+          friction: 6,
+          tension: 70,
+        }),
+      ]).start(() => {
+        setHasPlayedHint(true);
+      });
+    }
+  }, [index, hasPlayedHint, pan.x]);
 
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -66,7 +108,6 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     }),
 
     onPanResponderRelease: (_, g) => {
-      setShowTutorial(false);
       if (g.dx > SWIPE_THRESHOLD) forceSwipe("right");
       else if (g.dx < -SWIPE_THRESHOLD) forceSwipe("left");
       else resetPosition();
@@ -74,7 +115,6 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
   });
 
   function forceSwipe(dir: "left" | "right") {
-    setShowTutorial(false);
     const x = dir === "right" ? SCREEN_WIDTH : -SCREEN_WIDTH;
     Animated.timing(pan, {
       toValue: { x, y: 0 },
@@ -105,6 +145,22 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
     }).start();
   }
 
+  useEffect(() => {
+    if (
+      !hasMore ||
+      isLoadingMore ||
+      !onNearEnd ||
+      data.length === 0 ||
+      index < Math.max(data.length - 3, 0) ||
+      lastNearEndIndex.current === index
+    ) {
+      return;
+    }
+
+    lastNearEndIndex.current = index;
+    onNearEnd();
+  }, [data.length, hasMore, index, isLoadingMore, onNearEnd]);
+
   if (index >= data.length) {
     return (
       <View style={styles.container}>
@@ -124,16 +180,6 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
           { backgroundColor: bgColor, opacity: bgOpacity },
         ]}
       />
-
-      {showTutorial && (
-        <View style={styles.tutorialOverlay} pointerEvents="none">
-          <View style={styles.tutorialCard}>
-            <Text style={styles.tutorialTitle}>Quick tip</Text>
-            <Text style={styles.tutorialText}>Swipe left to pass ⟵</Text>
-            <Text style={styles.tutorialText}>Swipe right to save ⟶</Text>
-          </View>
-        </View>
-      )}
 
       <Animated.View
         style={[
@@ -166,6 +212,11 @@ export default function SwipeDeck({ data, onSwipeLeft }: Props) {
           onLike={() => forceSwipe("right")}
         />
       </Animated.View>
+      {isLoadingMore ? (
+        <View style={styles.loadingMoreWrap} pointerEvents="none">
+          <Text style={styles.loadingMoreText}>Loading more places...</Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -200,28 +251,6 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
 
-  tutorialCard: {
-    backgroundColor: "rgba(255,255,255,0.85)",
-    borderRadius: 25,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    width: "80%",
-  },
-
-  tutorialTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    textAlign: "center",
-    marginBottom: 8,
-  },
-
-  tutorialText: {
-    fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
-    marginTop: 6,
-  },
-
   badge: {
     position: "absolute",
     top: 40,
@@ -250,5 +279,21 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "900",
     letterSpacing: 1,
+  },
+
+  loadingMoreWrap: {
+    position: "absolute",
+    bottom: 28,
+    alignSelf: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+  },
+
+  loadingMoreText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "black",
   },
 });

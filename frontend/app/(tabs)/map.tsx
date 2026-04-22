@@ -57,7 +57,8 @@ export default function MapScreen() {
   const { savedPlaces } = useSavedPlaces();
 
   // ── Synced with LocationContext so both screens share the same value ──
-  const { radiusMiles, setRadiusMiles } = useLocation();
+  const { userLocation, setUserLocation, radiusMiles, setRadiusMiles } =
+    useLocation();
 
   // Local state for smooth dragging; syncs from context when other screen changes it
   const [localRadius, setLocalRadius] = useState<number>(radiusMiles);
@@ -103,10 +104,6 @@ export default function MapScreen() {
   } | null>(null);
   const [newPlaceName, setNewPlaceName] = useState<string>("");
   const [newPlaceDesc, setNewPlaceDesc] = useState<string>("");
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
   const [sliderVisible, setSliderVisible] = useState<boolean>(false);
   const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
   const [selectedMarker, setSelectedMarker] = useState<Place | null>(null);
@@ -182,7 +179,7 @@ export default function MapScreen() {
     }
 
     applyParams();
-  }, [params]);
+  }, [params, radiusMiles, setRadiusMiles, setUserLocation]);
 
   if (Platform.OS === "web") {
     return (
@@ -754,7 +751,7 @@ export default function MapScreen() {
           <View style={[styles.modalCard, { marginBottom: keyboardHeight }]}>
             <Text style={styles.modalTitle}>Enter Your Address</Text>
             <Text style={styles.modalSubtitle}>
-              Type your address and we'll pin it on the map
+              Type your address and we&apos;ll pin it on the map
             </Text>
             <Text style={styles.inputLabel}>Address</Text>
             <TextInput
@@ -1176,4 +1173,5 @@ const styles = StyleSheet.create({
   deleteBtnText: {
     color: "#fff",
   },
+});
 });
