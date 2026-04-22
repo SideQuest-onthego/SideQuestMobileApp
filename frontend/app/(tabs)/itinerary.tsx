@@ -1,5 +1,8 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import {
+  useSavedPlaces,
+  type GeneratedItineraryStop,
+} from "@/context/SavedPlacesContext";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import {
@@ -23,60 +26,122 @@ function formatPrice(min: number, max: number) {
   return `$${min}-$${max}`;
 }
 
-function getAveragePrice(min: number, max: number) {
-  if (min === 0 && max === 0) {
-    return 0;
-  }
-
-  if (min === max) {
-    return max;
-  }
-
-  return Math.round((min + max) / 2);
-}
-
 function formatLocation(city?: string, state?: string) {
   if (city && state) {
     return `${city}, ${state}`;
   }
 
-  if (city) {
-    return city;
+  return city || state || "Location unavailable";
+}
+
+function formatHours(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours === 0) {
+    return `${remainder} min`;
   }
 
-  if (state) {
-    return state;
+  if (remainder === 0) {
+    return `${hours}h`;
   }
 
-  return "Location unavailable";
+  return `${hours}h ${remainder}m`;
+}
+
+function TravelRow({ stop }: { stop: GeneratedItineraryStop }) {
+  if (stop.order === 1 || stop.travelTimeMinsFromPrevious <= 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.travelRow}>
+      <View style={styles.travelLine} />
+      <View style={styles.travelCard}>
+        <IconSymbol size={14} name="car.fill" color="#34524C" />
+        <Text style={styles.travelText}>
+          {stop.travelTimeMinsFromPrevious} min travel
+        </Text>
+        <Text style={styles.travelDot}>•</Text>
+        <Text style={styles.travelText}>
+          {stop.travelDistanceMilesFromPrevious} mi
+        </Text>
+      </View>
+    </View>
+  );
 }
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const { itineraryPlaces } = useSavedPlaces();
+  const {
+    itineraryPlaces,
+    generatedItinerary,
+    generateItinerary,
+    removeFromItinerary,
+  } = useSavedPlaces();
 
-  const itineraryStops = useMemo(() => {
-    return itineraryPlaces.slice(0, 5);
-  }, [itineraryPlaces]);
+  const stopsWithPlaces = useMemo(() => {
+    if (!generatedItinerary) {
+      return [];
+    }
 
-  const totalEstimatedCost = useMemo(() => {
-    return itineraryStops.reduce((total, place) => {
-      return (
-        total +
-        getAveragePrice(place.estimatedCost.min, place.estimatedCost.max)
+    return generatedItinerary.stops
+      .map((stop) => ({
+        stop,
+        place: itineraryPlaces.find((place) => place.id === stop.placeId) ?? null,
+      }))
+      .filter(
+        (
+          item,
+        ): item is {
+          stop: GeneratedItineraryStop;
+          place: (typeof itineraryPlaces)[number];
+        } => item.place !== null,
       );
-    }, 0);
-  }, [itineraryStops]);
+  }, [generatedItinerary, itineraryPlaces]);
 
-  const timeLabels = ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM"];
+  if (itineraryPlaces.length < 5) {
+    const placesNeeded = 5 - itineraryPlaces.length;
 
-  if (itineraryStops.length === 0) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>No itinerary yet</Text>
+        <View style={styles.emptyIconBox}>
+          <IconSymbol size={34} name="list.bullet.clipboard" color="#102C26" />
+        </View>
+        <Text style={styles.emptyTitle}>Build your day plan</Text>
         <Text style={styles.emptyText}>
-          Save a few places first and they will appear here as your day plan.
+          Select at least 5 saved places to generate an itinerary for the day.
         </Text>
+        <Text style={styles.selectionCount}>
+          {itineraryPlaces.length} selected • {placesNeeded} more to go
+        </Text>
+
+        {itineraryPlaces.length > 0 ? (
+          <View style={styles.selectedList}>
+            {itineraryPlaces.map((place) => (
+              <View key={place.id} style={styles.selectedPill}>
+                <Text style={styles.selectedPillText} numberOfLines={1}>
+                  {place.name}
+                </Text>
+
+                <Pressable
+                  style={styles.selectedPillRemoveButton}
+                  onPress={() => removeFromItinerary(place.id)}
+                  hitSlop={8}
+                >
+                  <Text style={styles.selectedPillRemoveText}>Remove</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
+        <Pressable
+          style={styles.primaryButton}
+          onPress={() => router.navigate("/saved")}
+        >
+          <Text style={styles.primaryButtonText}>Choose places</Text>
+        </Pressable>
       </View>
     );
   }
@@ -89,22 +154,9 @@ export default function ItineraryScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Your Itinerary</Text>
-      </View>
-
-      <View style={styles.segmentRow}>
-        <Pressable style={[styles.segmentButton, styles.segmentButtonActive]}>
-          <Text style={[styles.segmentText, styles.segmentTextActive]}>
-            Today
-          </Text>
-        </Pressable>
-
-        <Pressable style={styles.segmentButton}>
-          <Text style={styles.segmentText}>Tomorrow</Text>
-        </Pressable>
-
-        <Pressable style={styles.segmentButton}>
-          <Text style={styles.segmentText}>Custom</Text>
-        </Pressable>
+        <Text style={styles.headerSubtitle}>
+          Generated from {itineraryPlaces.length} selected places
+        </Text>
       </View>
 
       <View style={styles.summaryCard}>
@@ -113,117 +165,159 @@ export default function ItineraryScreen() {
         </View>
 
         <View style={styles.summaryCopy}>
-          <Text style={styles.summaryTitle}>Your Day Plan</Text>
+          <Text style={styles.summaryTitle}>
+            {generatedItinerary?.title ?? "Your Day Plan"}
+          </Text>
 
           <View style={styles.summaryMetaRow}>
             <Text style={styles.summaryMetaText}>
-              {itineraryStops.length} stops
+              {generatedItinerary?.totalStops ?? itineraryPlaces.length} stops
             </Text>
-            <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>~5 hrs</Text>
             <Text style={styles.summaryMetaDot}>•</Text>
             <Text style={styles.summaryMetaText}>
-              Est. ${totalEstimatedCost}
+              {formatHours(
+                (generatedItinerary?.totalActivityMinutes ?? 0) +
+                  (generatedItinerary?.totalTravelMinutes ?? 0),
+              )}
+            </Text>
+            <Text style={styles.summaryMetaDot}>•</Text>
+            <Text style={styles.summaryMetaText}>
+              Est. ${generatedItinerary?.totalEstimatedCost ?? 0}
             </Text>
           </View>
+
+          <Text style={styles.summaryRange}>
+            {generatedItinerary?.startTime} - {generatedItinerary?.endTime}
+          </Text>
         </View>
+      </View>
+
+      <View style={styles.actionRow}>
+        <Pressable style={styles.generateButton} onPress={generateItinerary}>
+          <Text style={styles.generateButtonText}>Regenerate itinerary</Text>
+        </Pressable>
+
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => router.navigate("/saved")}
+        >
+          <Text style={styles.secondaryButtonText}>Edit selections</Text>
+        </Pressable>
       </View>
 
       <View style={styles.stopsHeader}>
         <View style={styles.stopsHeaderLeft}>
           <IconSymbol size={18} name="list.bullet" color="#102C26" />
-          <Text style={styles.stopsTitle}>Your Stops</Text>
+          <Text style={styles.stopsTitle}>Day timeline</Text>
         </View>
       </View>
 
       <View style={styles.timelineWrapper}>
         <View style={styles.timelineRail} />
 
-        {itineraryStops.map((place, index) => {
+        {stopsWithPlaces.map(({ stop, place }) => {
           const priceLabel = formatPrice(
             place.estimatedCost.min,
             place.estimatedCost.max,
           );
 
           return (
-            <View key={place.id} style={styles.stopRow}>
-              <View style={styles.markerColumn}>
-                <View style={styles.timelineMarker}>
-                  <Text style={styles.timelineMarkerText}>{index + 1}</Text>
+            <View key={place.id}>
+              <TravelRow stop={stop} />
+
+              <View style={styles.stopRow}>
+                <View style={styles.markerColumn}>
+                  <View style={styles.timelineMarker}>
+                    <Text style={styles.timelineMarkerText}>{stop.order}</Text>
+                  </View>
                 </View>
-              </View>
 
-              <Pressable
-                style={styles.stopCard}
-                onPress={() =>
-                  router.push({
-                    pathname: "/itinerary/[placeId]",
-                    params: { placeId: place.id },
-                  })
-                }
-              >
-                {place.links?.imageUrl ? (
-                  <Image
-                    source={{ uri: place.links.imageUrl }}
-                    style={styles.stopImage}
-                  />
-                ) : (
-                  <View style={[styles.stopImage, styles.imageFallback]}>
-                    <Text style={styles.imageFallbackText}>POI</Text>
-                  </View>
-                )}
-
-                <View style={styles.stopContent}>
-                  <View style={styles.stopTopRow}>
-                    <View style={styles.timeRow}>
-                      <IconSymbol size={14} name="clock" color="#8B8B8B" />
-                      <Text style={styles.timeText}>
-                        {timeLabels[index] ?? "TBD"}
-                      </Text>
+                <Pressable
+                  style={styles.stopCard}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/itinerary/[placeId]",
+                      params: { placeId: place.id },
+                    })
+                  }
+                >
+                  {place.links?.imageUrl ? (
+                    <Image
+                      source={{ uri: place.links.imageUrl }}
+                      style={styles.stopImage}
+                    />
+                  ) : (
+                    <View style={[styles.stopImage, styles.imageFallback]}>
+                      <Text style={styles.imageFallbackText}>POI</Text>
                     </View>
+                  )}
 
-                    <Text style={styles.priceText}>{priceLabel}</Text>
-                  </View>
-
-                  <Text style={styles.stopTitle} numberOfLines={2}>
-                    {place.name}
-                  </Text>
-
-                  <Text style={styles.stopAddress} numberOfLines={1}>
-                    {formatLocation(place.location.city, place.location.state)}
-                  </Text>
-
-                  <View style={styles.chipRow}>
-                    <View
-                      style={[
-                        styles.priceChip,
-                        priceLabel === "Free"
-                          ? styles.priceChipMint
-                          : styles.priceChipDark,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.priceChipText,
-                          priceLabel === "Free"
-                            ? styles.priceChipTextMint
-                            : styles.priceChipTextDark,
-                        ]}
-                      >
-                        {priceLabel}
-                      </Text>
-                    </View>
-
-                    {!!place.category && (
-                      <View style={styles.categoryChip}>
-                        <Text style={styles.categoryChipText}>
-                          {place.category}
+                  <View style={styles.stopContent}>
+                    <View style={styles.stopTopRow}>
+                      <View>
+                        <Text style={styles.timeText}>
+                          {stop.startTime} - {stop.endTime}
+                        </Text>
+                        <Text style={styles.durationText}>
+                          {stop.durationMins} min stop
                         </Text>
                       </View>
-                    )}
+
+                      <Text style={styles.priceText}>{priceLabel}</Text>
+                    </View>
+
+                    <Text style={styles.stopTitle} numberOfLines={2}>
+                      {place.name}
+                    </Text>
+
+                    <Text style={styles.stopAddress} numberOfLines={1}>
+                      {formatLocation(place.location.city, place.location.state)}
+                    </Text>
+
+                    <View style={styles.chipRow}>
+                      <View
+                        style={[
+                          styles.priceChip,
+                          priceLabel === "Free"
+                            ? styles.priceChipMint
+                            : styles.priceChipDark,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.priceChipText,
+                            priceLabel === "Free"
+                              ? styles.priceChipTextMint
+                              : styles.priceChipTextDark,
+                          ]}
+                        >
+                          {priceLabel}
+                        </Text>
+                      </View>
+
+                      {!!place.category ? (
+                        <View style={styles.categoryChip}>
+                          <Text style={styles.categoryChipText}>
+                            {place.category}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <Pressable
+                      style={styles.removeButton}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        removeFromItinerary(place.id);
+                      }}
+                    >
+                      <Text style={styles.removeButtonText}>
+                        Remove from itinerary
+                      </Text>
+                    </Pressable>
                   </View>
-                </View>
-              </Pressable>
+                </Pressable>
+              </View>
             </View>
           );
         })}
@@ -232,7 +326,9 @@ export default function ItineraryScreen() {
       <View style={styles.mapCard}>
         <View style={styles.mapPlaceholder}>
           <IconSymbol size={28} name="map" color="#46655F" />
-          <Text style={styles.mapPlaceholderText}>Map preview coming soon</Text>
+          <Text style={styles.mapPlaceholderText}>
+            Map preview coming soon
+          </Text>
         </View>
 
         <Pressable
@@ -243,14 +339,6 @@ export default function ItineraryScreen() {
           <IconSymbol size={16} name="chevron.right" color="#102C26" />
         </Pressable>
       </View>
-
-      <Pressable style={styles.generateButton}>
-        <Text style={styles.generateButtonText}>Generate Route</Text>
-      </Pressable>
-
-      <Text style={styles.footerHint}>
-        We’ll optimize the order and timings for you
-      </Text>
     </ScrollView>
   );
 }
@@ -277,34 +365,7 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     marginTop: 4,
     fontSize: 16,
-    color: "#7B8683",
-  },
-  segmentRow: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "#102C26",
-    borderRadius: 999,
-    overflow: "hidden",
-    marginBottom: 22,
-  },
-  segmentButton: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 14,
-    backgroundColor: "#FFFFFF",
-  },
-  segmentButtonActive: {
-    backgroundColor: "#103B34",
-  },
-  segmentText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#48525A",
-  },
-  segmentTextActive: {
-    color: "#FFFFFF",
+    color: "#5A7069",
   },
   summaryCard: {
     flexDirection: "row",
@@ -315,7 +376,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#102C26",
     padding: 16,
-    marginBottom: 24,
+    marginBottom: 18,
   },
   summaryIconBox: {
     width: 58,
@@ -341,14 +402,51 @@ const styles = StyleSheet.create({
   },
   summaryMetaText: {
     fontSize: 14,
-    fontWeight: "600",
-    color: "#6C757D",
+    fontWeight: "700",
+    color: "#5A7069",
   },
   summaryMetaDot: {
     marginHorizontal: 6,
     fontSize: 14,
     fontWeight: "700",
-    color: "#6C757D",
+    color: "#5A7069",
+  },
+  summaryRange: {
+    fontSize: 14,
+    color: "#34524C",
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 24,
+  },
+  generateButton: {
+    flex: 1,
+    backgroundColor: "#0B3B33",
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  generateButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 18,
+    paddingVertical: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#102C26",
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#102C26",
   },
   stopsHeader: {
     marginBottom: 14,
@@ -372,10 +470,42 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 17,
     top: 24,
-    bottom: 26,
+    bottom: 24,
     width: 3,
     borderRadius: 999,
     backgroundColor: "#12362E",
+  },
+  travelRow: {
+    flexDirection: "row",
+    paddingLeft: 42,
+    marginBottom: 10,
+  },
+  travelLine: {
+    position: "absolute",
+    left: 17,
+    top: -8,
+    bottom: -8,
+    width: 3,
+    backgroundColor: "transparent",
+  },
+  travelCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#D9ECE7",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  travelText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#34524C",
+  },
+  travelDot: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#46655F",
   },
   stopRow: {
     flexDirection: "row",
@@ -434,20 +564,20 @@ const styles = StyleSheet.create({
   },
   stopTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 4,
     gap: 8,
   },
-  timeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
   timeText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#8B8B8B",
+    fontWeight: "700",
+    color: "#34524C",
+  },
+  durationText: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 2,
   },
   priceText: {
     fontSize: 16,
@@ -505,17 +635,27 @@ const styles = StyleSheet.create({
     color: "#4B5563",
     textTransform: "capitalize",
   },
+  removeButton: {
+    alignSelf: "flex-start",
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "#EFF7F4",
+    borderWidth: 1,
+    borderColor: "#B7CFC8",
+  },
+  removeButtonText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#12362E",
+  },
   mapCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 2,
     borderColor: "#102C26",
     overflow: "hidden",
-    marginBottom: 22,
-  },
-  mapPreview: {
-    height: 140,
-    width: "100%",
   },
   mapPlaceholder: {
     height: 140,
@@ -550,42 +690,90 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#102C26",
   },
-  generateButton: {
-    backgroundColor: "#0B3B33",
-    borderRadius: 20,
-    paddingVertical: 18,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 10,
-  },
-  generateButtonText: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-  },
-  footerHint: {
-    textAlign: "center",
-    fontSize: 15,
-    color: "#7A8884",
-  },
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: 24,
     backgroundColor: "#DBFEF7",
-    gap: 10,
+  },
+  emptyIconBox: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    backgroundColor: "#CFEFE9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 18,
   },
   emptyTitle: {
     fontSize: 24,
     fontWeight: "800",
     color: "#102C26",
+    marginBottom: 8,
   },
   emptyText: {
-    maxWidth: 280,
+    maxWidth: 300,
     fontSize: 15,
     lineHeight: 22,
     textAlign: "center",
     color: "#34524C",
+    marginBottom: 8,
+  },
+  selectionCount: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#46655F",
+    marginBottom: 18,
+  },
+  selectedList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    justifyContent: "center",
+    marginBottom: 22,
+  },
+  selectedPill: {
+    width: "46%",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#AAB7B3",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  selectedPillText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#12362E",
+  },
+  selectedPillRemoveButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#EFF7F4",
+    borderWidth: 1,
+    borderColor: "#B7CFC8",
+  },
+  selectedPillRemoveText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#12362E",
+  },
+  primaryButton: {
+    backgroundColor: "#0B3B33",
+    borderRadius: 18,
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
 });
