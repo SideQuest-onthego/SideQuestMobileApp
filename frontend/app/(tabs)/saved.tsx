@@ -19,7 +19,7 @@ function getAveragePrice(min?: number, max?: number) {
 
 export default function SavedScreen() {
   const router = useRouter();
-  const { savedPlaces, removePlace } = useSavedPlaces();
+  const { savedPlaces, removePlace, addToItinerary } = useSavedPlaces();
   const [selectedFilter, setSelectedFilter] = useState<"all" | "free" | "paid">(
     "all",
   );
@@ -232,6 +232,7 @@ export default function SavedScreen() {
             <SavedPlaceCard
               item={item}
               onRemove={removePlace}
+              onAddToItinerary={addToItinerary}
               onPress={(place) =>
                 router.push({
                   pathname: "/itinerary/[placeId]",
