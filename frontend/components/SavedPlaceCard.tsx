@@ -1,18 +1,26 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
+import { useSavedPlaces } from "../context/SavedPlacesContext";
 
 type SavedPlaceCardProps = {
   item: ActivityModel;
   onRemove?: (id: string) => void;
   onPress?: (item: ActivityModel) => void;
+  onAddToItinerary?: (item: ActivityModel) => void;
 };
 
 export default function SavedPlaceCard({
   item,
   onRemove,
   onPress,
+  onAddToItinerary,
 }: SavedPlaceCardProps) {
+
+  const { itineraryPlaces } = useSavedPlaces();
+
+  const isAdded = itineraryPlaces.some(p => p.id === item.id);
+
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
       {/* Left: Image */}
@@ -33,16 +41,32 @@ export default function SavedPlaceCard({
           </Text>
         </View>
 
-        {/* Remove button */}
-        <Pressable
-          onPress={(event) => {
-            event.stopPropagation();
-            onRemove?.(item.id);
-          }}
-          style={styles.removeButton}
-        >
-          <Text style={styles.removeText}>Remove</Text>
-        </Pressable>
+        {/* Buttons */}
+        <View style={styles.buttonRow}>
+
+          {/* Add to Itinerary button */}
+          {!isAdded && (
+            <Pressable
+              onPress={(event) => {
+                event.stopPropagation();
+                onAddToItinerary?.(item);
+              }}
+              style={styles.addButton}
+            >
+              <Text style={styles.addText}>Add To Itinerary</Text>
+            </Pressable>
+          )}
+          {/* Remove button */}
+          <Pressable
+            onPress={(event) => {
+              event.stopPropagation();
+              onRemove?.(item.id);
+            }}
+            style={styles.removeButton}
+          >
+            <Text style={styles.removeText}>Remove</Text>
+          </Pressable>
+        </View>
       </View>
     </Pressable>
   );
@@ -63,43 +87,68 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+
   image: {
     width: 100,
     height: 100,
     borderRadius: 8,
     marginRight: 12,
   },
+
   imagePlaceholder: {
     backgroundColor: "#ddd",
     justifyContent: "center",
     alignItems: "center",
   },
+
   imagePlaceholderText: {
     color: "#888",
     fontSize: 12,
   },
+
   infoContainer: {
     flex: 1,
     justifyContent: "space-between",
   },
+
   title: {
     fontSize: 16,
     fontWeight: "600",
   },
+
   description: {
     fontSize: 14,
     color: "#555",
     marginTop: 4,
   },
+
+  buttonRow: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 8,
+  },
+
   removeButton: {
     backgroundColor: "#000",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
-    alignSelf: "flex-end",
-    marginTop: 8,
   },
+
   removeText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+
+  addButton: {
+    backgroundColor: "#000",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+
+  addText: {
     color: "#fff",
     fontWeight: "600",
   },

@@ -53,11 +53,11 @@ function formatLocation(city?: string, state?: string) {
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const { savedPlaces } = useSavedPlaces();
+  const { itineraryPlaces } = useSavedPlaces();
 
   const itineraryStops = useMemo(() => {
-    return savedPlaces.slice(0, 4);
-  }, [savedPlaces]);
+    return itineraryPlaces.slice(0, 5);
+  }, [itineraryPlaces]);
 
   const totalEstimatedCost = useMemo(() => {
     return itineraryStops.reduce((total, place) => {
