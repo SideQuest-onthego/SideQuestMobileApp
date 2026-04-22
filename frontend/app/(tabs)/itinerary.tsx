@@ -1,8 +1,14 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
-import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
 import {
+  generateItineraryWithGemini,
+  type GeneratedItinerary,
+  type ItineraryStop,
+} from "@/services/geminiItinerary";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState, useCallback } from "react";
+import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -54,21 +60,51 @@ function formatLocation(city?: string, state?: string) {
 export default function ItineraryScreen() {
   const router = useRouter();
   const { itineraryPlaces } = useSavedPlaces();
+  const [generatedItinerary, setGeneratedItinerary] =
+    useState<GeneratedItinerary | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  const itineraryStops = useMemo(() => {
-    return itineraryPlaces.slice(0, 5);
-  }, [itineraryPlaces]);
+  const itineraryStops = useMemo((): ItineraryStop[] => {
+    if (generatedItinerary) {
+      return generatedItinerary.stops;
+    }
+    return itineraryPlaces.slice(0, 5).map((place, index) => ({
+      place,
+      order: index + 1,
+      startTime: ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM", "6:00 PM"][index] ?? "TBD",
+      endTime: ["11:30 AM", "1:30 PM", "3:30 PM", "6:00 PM", "7:30 PM"][index] ?? "TBD",
+    }));
+  }, [itineraryPlaces, generatedItinerary]);
 
   const totalEstimatedCost = useMemo(() => {
-    return itineraryStops.reduce((total, place) => {
+    return itineraryStops.reduce((total, stop) => {
       return (
         total +
-        getAveragePrice(place.estimatedCost.min, place.estimatedCost.max)
+        getAveragePrice(stop.place.estimatedCost.min, stop.place.estimatedCost.max)
       );
     }, 0);
   }, [itineraryStops]);
 
-  const timeLabels = ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM"];
+  const totalDurationMins = useMemo(() => {
+    return generatedItinerary?.totalDurationMins ?? itineraryStops.length * 90;
+  }, [generatedItinerary, itineraryStops]);
+
+  const handleGenerateRoute = useCallback(async () => {
+    if (itineraryPlaces.length === 0) return;
+
+    setIsGenerating(true);
+    try {
+      const result = await generateItineraryWithGemini(
+        itineraryPlaces.slice(0, 5),
+        "10:00 AM"
+      );
+      setGeneratedItinerary(result);
+    } catch (error) {
+      console.error("Failed to generate itinerary:", error);
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [itineraryPlaces]);
 
   if (itineraryStops.length === 0) {
     return (
@@ -120,7 +156,7 @@ export default function ItineraryScreen() {
               {itineraryStops.length} stops
             </Text>
             <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>~5 hrs</Text>
+            <Text style={styles.summaryMetaText}>~{Math.round(totalDurationMins / 60)} hrs</Text>
             <Text style={styles.summaryMetaDot}>•</Text>
             <Text style={styles.summaryMetaText}>
               Est. ${totalEstimatedCost}
@@ -139,17 +175,17 @@ export default function ItineraryScreen() {
       <View style={styles.timelineWrapper}>
         <View style={styles.timelineRail} />
 
-        {itineraryStops.map((place, index) => {
+        {itineraryStops.map((stop) => {
           const priceLabel = formatPrice(
-            place.estimatedCost.min,
-            place.estimatedCost.max,
+            stop.place.estimatedCost.min,
+            stop.place.estimatedCost.max,
           );
 
           return (
-            <View key={place.id} style={styles.stopRow}>
+            <View key={stop.place.id} style={styles.stopRow}>
               <View style={styles.markerColumn}>
                 <View style={styles.timelineMarker}>
-                  <Text style={styles.timelineMarkerText}>{index + 1}</Text>
+                  <Text style={styles.timelineMarkerText}>{stop.order}</Text>
                 </View>
               </View>
 
@@ -158,13 +194,13 @@ export default function ItineraryScreen() {
                 onPress={() =>
                   router.push({
                     pathname: "/itinerary/[placeId]",
-                    params: { placeId: place.id },
+                    params: { placeId: stop.place.id },
                   })
                 }
               >
-                {place.links?.imageUrl ? (
+                {stop.place.links?.imageUrl ? (
                   <Image
-                    source={{ uri: place.links.imageUrl }}
+                    source={{ uri: stop.place.links.imageUrl }}
                     style={styles.stopImage}
                   />
                 ) : (
@@ -178,7 +214,7 @@ export default function ItineraryScreen() {
                     <View style={styles.timeRow}>
                       <IconSymbol size={14} name="clock" color="#8B8B8B" />
                       <Text style={styles.timeText}>
-                        {timeLabels[index] ?? "TBD"}
+                        {stop.startTime}
                       </Text>
                     </View>
 
@@ -186,11 +222,11 @@ export default function ItineraryScreen() {
                   </View>
 
                   <Text style={styles.stopTitle} numberOfLines={2}>
-                    {place.name}
+                    {stop.place.name}
                   </Text>
 
                   <Text style={styles.stopAddress} numberOfLines={1}>
-                    {formatLocation(place.location.city, place.location.state)}
+                    {formatLocation(stop.place.location.city, stop.place.location.state)}
                   </Text>
 
                   <View style={styles.chipRow}>
@@ -214,10 +250,10 @@ export default function ItineraryScreen() {
                       </Text>
                     </View>
 
-                    {!!place.category && (
+                    {!!stop.place.category && (
                       <View style={styles.categoryChip}>
                         <Text style={styles.categoryChipText}>
-                          {place.category}
+                          {stop.place.category}
                         </Text>
                       </View>
                     )}
@@ -244,12 +280,22 @@ export default function ItineraryScreen() {
         </Pressable>
       </View>
 
-      <Pressable style={styles.generateButton}>
-        <Text style={styles.generateButtonText}>Generate Route</Text>
+      <Pressable
+        style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+        onPress={handleGenerateRoute}
+        disabled={isGenerating}
+      >
+        {isGenerating ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.generateButtonText}>
+            {generatedItinerary ? "Regenerate Route" : "Generate Route"}
+          </Text>
+        )}
       </Pressable>
 
       <Text style={styles.footerHint}>
-        We’ll optimize the order and timings for you
+        {generatedItinerary?.summary || "We’ll optimize the order and timings for you"}
       </Text>
     </ScrollView>
   );
@@ -557,6 +603,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
+  },
+  generateButtonDisabled: {
+    opacity: 0.7,
   },
   generateButtonText: {
     fontSize: 18,
