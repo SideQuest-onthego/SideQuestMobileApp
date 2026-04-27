@@ -217,8 +217,8 @@ export default function ItineraryScreen() {
 
         {stopsWithPlaces.map(({ stop, place }) => {
           const priceLabel = formatPrice(
-            place.estimatedCost.min,
-            place.estimatedCost.max,
+            place.estimatedCost?.min ?? 0,
+            place.estimatedCost?.max ?? 0,
           );
 
           return (
@@ -271,7 +271,10 @@ export default function ItineraryScreen() {
                     </Text>
 
                     <Text style={styles.stopAddress} numberOfLines={1}>
-                      {formatLocation(place.location.city, place.location.state)}
+                      {formatLocation(
+                        place.location?.city,
+                        place.location?.state,
+                      )}
                     </Text>
 
                     <View style={styles.chipRow}>
