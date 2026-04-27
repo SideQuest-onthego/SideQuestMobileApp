@@ -151,6 +151,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (itineraryPlaces.length >= 5 && !generatedItinerary) {
       const nextGenerated = generateItineraryResult(itineraryPlaces);
+      console.log("Generated itinerary result:", nextGenerated);
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(itineraryPlaces, nextGenerated);
     }
@@ -164,6 +165,15 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     itineraryPlaces,
     persistItineraryState,
   ]);
+
+  useEffect(() => {
+    if (itineraryPlaces.length >= 5 && generatedItinerary) {
+      console.warn(
+        "Generated itinerary available:",
+        JSON.stringify(generatedItinerary, null, 2),
+      );
+    }
+  }, [generatedItinerary, itineraryPlaces.length]);
 
   // saved places
   const addPlace = (place: ActivityModel) => {
@@ -199,6 +209,9 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       if (prev.some((p) => p.id === place.id)) return prev;
       const updated = [...prev, place];
       const nextGenerated = generateItineraryResult(updated);
+      if (updated.length >= 5) {
+        console.log("Generated itinerary result:", nextGenerated);
+      }
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(updated, nextGenerated);
       return updated;
@@ -217,6 +230,9 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   const generateItinerary = useCallback(() => {
     const nextGenerated = generateItineraryResult(itineraryPlaces);
+    if (itineraryPlaces.length >= 5) {
+      console.log("Generated itinerary result:", nextGenerated);
+    }
     setGeneratedItinerary(nextGenerated);
     persistItineraryState(itineraryPlaces, nextGenerated);
   }, [itineraryPlaces, persistItineraryState]);
