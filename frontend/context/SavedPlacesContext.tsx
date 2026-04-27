@@ -8,37 +8,17 @@ import React, {
   useCallback,
 } from "react";
 import type { ActivityModel } from "../types/sidequest-models";
+import type { ItineraryResult } from "@/types/itinerary";
+import { generateItineraryResult } from "@/services/itineraryEngine";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 
-export type GeneratedItineraryStop = {
-  order: number;
-  placeId: string;
-  startTime: string;
-  endTime: string;
-  travelTimeMinsFromPrevious: number;
-  travelDistanceMilesFromPrevious: number;
-  durationMins: number;
-};
-
-export type GeneratedItinerary = {
-  title: string;
-  dateLabel: string;
-  startTime: string;
-  endTime: string;
-  totalStops: number;
-  totalActivityMinutes: number;
-  totalTravelMinutes: number;
-  totalEstimatedCost: number;
-  stops: GeneratedItineraryStop[];
-};
-
 type SavedPlacesContextType = {
   savedPlaces: ActivityModel[];
   itineraryPlaces: ActivityModel[];
-  generatedItinerary: GeneratedItinerary | null;
+  generatedItinerary: ItineraryResult | null;
 
   addPlace: (place: ActivityModel) => void;
   removePlace: (placeId: string) => void;
@@ -80,7 +60,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [savedPlaces, setSavedPlaces] = useState<ActivityModel[]>([]);
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [generatedItinerary, setGeneratedItinerary] =
-    useState<GeneratedItinerary | null>(null);
+    useState<ItineraryResult | null>(null);
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   // auth listener
@@ -107,7 +87,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
           const savedData: ActivityModel[] = snapshot.data().saved || [];
           const itinerarySelection: ActivityModel[] =
             snapshot.data().itinerarySelection || [];
-          const savedGeneratedItinerary: GeneratedItinerary | null =
+          const savedGeneratedItinerary: ItineraryResult | null =
             snapshot.data().generatedItinerary || null;
 
           setSavedPlaces(
@@ -142,7 +122,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const saveToFirestore = async (
     places: ActivityModel[],
     itinerarySelection: ActivityModel[] = itineraryPlaces,
-    itinerary: GeneratedItinerary | null = generatedItinerary,
+    itinerary: ItineraryResult | null = generatedItinerary,
   ) => {
     if (!user) return;
 
@@ -161,161 +141,16 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const getDistanceMiles = (
-    from: ActivityModel,
-    to: ActivityModel,
-  ): number => {
-    const lat1 = from.location.lat;
-    const lon1 = from.location.lng;
-    const lat2 = to.location.lat;
-    const lon2 = to.location.lng;
-
-    const R = 3958.8;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  };
-
-  const formatClock = (minutesSinceMidnight: number) => {
-    const normalized = ((minutesSinceMidnight % 1440) + 1440) % 1440;
-    const hours = Math.floor(normalized / 60);
-    const minutes = normalized % 60;
-    const suffix = hours >= 12 ? "PM" : "AM";
-    const hour12 = hours % 12 || 12;
-    const minuteLabel = minutes.toString().padStart(2, "0");
-    return `${hour12}:${minuteLabel} ${suffix}`;
-  };
-
-  const getAveragePrice = (place: ActivityModel) => {
-    const min = place.estimatedCost?.min ?? 0;
-    const max = place.estimatedCost?.max ?? 0;
-    return Math.round((min + max) / 2);
-  };
-
-  const buildGeneratedItinerary = useCallback(
-    (places: ActivityModel[]): GeneratedItinerary | null => {
-      if (places.length < 5) {
-        return null;
-      }
-
-      const remaining = [...places];
-      const centroid = remaining.reduce(
-        (acc, place) => ({
-          lat: acc.lat + place.location.lat,
-          lng: acc.lng + place.location.lng,
-        }),
-        { lat: 0, lng: 0 },
-      );
-
-      centroid.lat /= remaining.length;
-      centroid.lng /= remaining.length;
-
-      remaining.sort((a, b) => {
-        const distA = Math.hypot(
-          a.location.lat - centroid.lat,
-          a.location.lng - centroid.lng,
-        );
-        const distB = Math.hypot(
-          b.location.lat - centroid.lat,
-          b.location.lng - centroid.lng,
-        );
-        return distA - distB;
-      });
-
-      const ordered: ActivityModel[] = [];
-      let current = remaining.shift();
-
-      while (current) {
-        ordered.push(current);
-
-        if (remaining.length === 0) {
-          break;
-        }
-
-        let nextIndex = 0;
-        let bestDistance = Number.POSITIVE_INFINITY;
-
-        remaining.forEach((candidate, index) => {
-          const candidateDistance = getDistanceMiles(current, candidate);
-          if (candidateDistance < bestDistance) {
-            bestDistance = candidateDistance;
-            nextIndex = index;
-          }
-        });
-
-        current = remaining.splice(nextIndex, 1)[0];
-      }
-
-      let clock = 9 * 60;
-      let totalActivityMinutes = 0;
-      let totalTravelMinutes = 0;
-      let totalEstimatedCost = 0;
-
-      const stops: GeneratedItineraryStop[] = ordered.map((place, index) => {
-        const durationMins = Math.max(
-          45,
-          Math.min(place.typicalDurationMins || 90, 180),
-        );
-        const travelDistanceMiles =
-          index === 0 ? 0 : getDistanceMiles(ordered[index - 1], place);
-        const travelTimeMins =
-          index === 0
-            ? 0
-            : Math.max(10, Math.round((travelDistanceMiles / 18) * 60));
-
-        clock += travelTimeMins;
-        const startTime = formatClock(clock);
-        clock += durationMins;
-        const endTime = formatClock(clock);
-
-        totalTravelMinutes += travelTimeMins;
-        totalActivityMinutes += durationMins;
-        totalEstimatedCost += getAveragePrice(place);
-
-        return {
-          order: index + 1,
-          placeId: place.id,
-          startTime,
-          endTime,
-          travelTimeMinsFromPrevious: travelTimeMins,
-          travelDistanceMilesFromPrevious:
-            Math.round(travelDistanceMiles * 10) / 10,
-          durationMins,
-        };
-      });
-
-      return {
-        title: "Your Day Plan",
-        dateLabel: "Today",
-        startTime: stops[0]?.startTime ?? "9:00 AM",
-        endTime: stops[stops.length - 1]?.endTime ?? "5:00 PM",
-        totalStops: ordered.length,
-        totalActivityMinutes,
-        totalTravelMinutes,
-        totalEstimatedCost,
-        stops,
-      };
-    },
-    [],
-  );
-
   const persistItineraryState = useCallback(
-    (selection: ActivityModel[], itinerary: GeneratedItinerary | null) => {
+    (selection: ActivityModel[], itinerary: ItineraryResult | null) => {
       void saveToFirestore(savedPlaces, selection, itinerary);
     },
-    [savedPlaces, itineraryPlaces, generatedItinerary],
+    [savedPlaces],
   );
 
   useEffect(() => {
     if (itineraryPlaces.length >= 5 && !generatedItinerary) {
-      const nextGenerated = buildGeneratedItinerary(itineraryPlaces);
+      const nextGenerated = generateItineraryResult(itineraryPlaces);
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(itineraryPlaces, nextGenerated);
     }
@@ -325,7 +160,6 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       persistItineraryState(itineraryPlaces, null);
     }
   }, [
-    buildGeneratedItinerary,
     generatedItinerary,
     itineraryPlaces,
     persistItineraryState,
@@ -350,14 +184,13 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     setSavedPlaces((prev) => {
       const updated = prev.filter((p) => p.id !== placeId);
       const updatedSelection = itineraryPlaces.filter((p) => p.id !== placeId);
-      const nextGenerated = buildGeneratedItinerary(updatedSelection);
+      const nextGenerated = generateItineraryResult(updatedSelection);
 
       setItineraryPlaces(updatedSelection);
       setGeneratedItinerary(nextGenerated);
       void saveToFirestore(updated, updatedSelection, nextGenerated);
       return updated;
     });
-    setItineraryPlaces((prev) => prev.filter((p) => p.id !== placeId));
   };
 
   // itinerary logic
@@ -365,7 +198,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
       const updated = [...prev, place];
-      const nextGenerated = buildGeneratedItinerary(updated);
+      const nextGenerated = generateItineraryResult(updated);
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(updated, nextGenerated);
       return updated;
@@ -375,7 +208,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const removeFromItinerary = (placeId: string) => {
     setItineraryPlaces((prev) => {
       const updated = prev.filter((p) => p.id !== placeId);
-      const nextGenerated = buildGeneratedItinerary(updated);
+      const nextGenerated = generateItineraryResult(updated);
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(updated, nextGenerated);
       return updated;
@@ -383,10 +216,10 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   };
 
   const generateItinerary = useCallback(() => {
-    const nextGenerated = buildGeneratedItinerary(itineraryPlaces);
+    const nextGenerated = generateItineraryResult(itineraryPlaces);
     setGeneratedItinerary(nextGenerated);
     persistItineraryState(itineraryPlaces, nextGenerated);
-  }, [buildGeneratedItinerary, itineraryPlaces, persistItineraryState]);
+  }, [itineraryPlaces, persistItineraryState]);
 
   return (
     <SavedPlacesContext.Provider
