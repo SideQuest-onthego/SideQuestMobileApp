@@ -23,11 +23,9 @@ type SavedPlacesContextType = {
   removeFromItinerary: (placeId: string) => void;
 };
 
-
-
-const SavedPlacesContext = createContext<
-  SavedPlacesContextType | undefined
->(undefined);
+const SavedPlacesContext = createContext<SavedPlacesContextType | undefined>(
+  undefined,
+);
 
 // removes undefined values before saving to Firestore
 function stripUndefined<T>(value: T): T {
@@ -53,11 +51,7 @@ export function useSavedPlaces() {
   return context;
 }
 
-export function SavedPlacesProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [savedPlaces, setSavedPlaces] = useState<ActivityModel[]>([]);
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [user, setUser] = useState<User | null>(auth.currentUser);
@@ -69,8 +63,8 @@ export function SavedPlacesProvider({
   }, []);
 
   useEffect(() => {
-  console.log("Itinerary places updated:", itineraryPlaces);
-}, [itineraryPlaces]);
+    console.log("Itinerary places updated:", itineraryPlaces);
+  }, [itineraryPlaces]);
 
   // load saved places
   useEffect(() => {
@@ -85,8 +79,7 @@ export function SavedPlacesProvider({
         const snapshot = await getDoc(docRef);
 
         if (snapshot.exists()) {
-          const savedData: ActivityModel[] =
-            snapshot.data().saved || [];
+          const savedData: ActivityModel[] = snapshot.data().saved || [];
 
           setSavedPlaces(
             savedData.map((p) => ({
@@ -141,6 +134,7 @@ export function SavedPlacesProvider({
       saveToFirestore(updated);
       return updated;
     });
+    setItineraryPlaces((prev) => prev.filter((p) => p.id !== placeId));
   };
 
   // itinerary logic
@@ -153,9 +147,7 @@ export function SavedPlacesProvider({
   };
 
   const removeFromItinerary = (placeId: string) => {
-    setItineraryPlaces((prev) =>
-      prev.filter((p) => p.id !== placeId),
-    );
+    setItineraryPlaces((prev) => prev.filter((p) => p.id !== placeId));
   };
 
   return (

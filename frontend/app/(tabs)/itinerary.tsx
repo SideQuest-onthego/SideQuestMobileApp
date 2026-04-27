@@ -1,7 +1,8 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Ionicons } from "@expo/vector-icons";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
 import {
-  generateItineraryWithGemini,
+  //generateItineraryWithGemini,
   type GeneratedItinerary,
   type ItineraryStop,
 } from "@/services/geminiItinerary";
@@ -59,7 +60,7 @@ function formatLocation(city?: string, state?: string) {
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const { itineraryPlaces } = useSavedPlaces();
+  const { itineraryPlaces, removeFromItinerary } = useSavedPlaces();
   const [generatedItinerary, setGeneratedItinerary] =
     useState<GeneratedItinerary | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -71,8 +72,12 @@ export default function ItineraryScreen() {
     return itineraryPlaces.slice(0, 5).map((place, index) => ({
       place,
       order: index + 1,
-      startTime: ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM", "6:00 PM"][index] ?? "TBD",
-      endTime: ["11:30 AM", "1:30 PM", "3:30 PM", "6:00 PM", "7:30 PM"][index] ?? "TBD",
+      startTime:
+        ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM", "6:00 PM"][index] ??
+        "TBD",
+      endTime:
+        ["11:30 AM", "1:30 PM", "3:30 PM", "6:00 PM", "7:30 PM"][index] ??
+        "TBD",
     }));
   }, [itineraryPlaces, generatedItinerary]);
 
@@ -80,7 +85,10 @@ export default function ItineraryScreen() {
     return itineraryStops.reduce((total, stop) => {
       return (
         total +
-        getAveragePrice(stop.place.estimatedCost.min, stop.place.estimatedCost.max)
+        getAveragePrice(
+          stop.place.estimatedCost.min,
+          stop.place.estimatedCost.max,
+        )
       );
     }, 0);
   }, [itineraryStops]);
@@ -89,6 +97,10 @@ export default function ItineraryScreen() {
     return generatedItinerary?.totalDurationMins ?? itineraryStops.length * 90;
   }, [generatedItinerary, itineraryStops]);
 
+  const handleRemoveStop = (placeId: string) => {
+    removeFromItinerary(placeId);
+  };
+
   const handleGenerateRoute = useCallback(async () => {
     if (itineraryPlaces.length === 0) return;
 
@@ -96,7 +108,7 @@ export default function ItineraryScreen() {
     try {
       const result = await generateItineraryWithGemini(
         itineraryPlaces.slice(0, 5),
-        "10:00 AM"
+        "10:00 AM",
       );
       setGeneratedItinerary(result);
     } catch (error) {
@@ -156,7 +168,9 @@ export default function ItineraryScreen() {
               {itineraryStops.length} stops
             </Text>
             <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>~{Math.round(totalDurationMins / 60)} hrs</Text>
+            <Text style={styles.summaryMetaText}>
+              ~{Math.round(totalDurationMins / 60)} hrs
+            </Text>
             <Text style={styles.summaryMetaDot}>•</Text>
             <Text style={styles.summaryMetaText}>
               Est. ${totalEstimatedCost}
@@ -213,12 +227,22 @@ export default function ItineraryScreen() {
                   <View style={styles.stopTopRow}>
                     <View style={styles.timeRow}>
                       <IconSymbol size={14} name="clock" color="#8B8B8B" />
-                      <Text style={styles.timeText}>
-                        {stop.startTime}
-                      </Text>
+                      <Text style={styles.timeText}>{stop.startTime}</Text>
                     </View>
 
-                    <Text style={styles.priceText}>{priceLabel}</Text>
+                    <View style={styles.stopActionsRow}>
+                      <Text style={styles.priceText}>{priceLabel}</Text>
+
+                      <Pressable
+                        style={styles.deleteButton}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          handleRemoveStop(stop.place.id);
+                        }}
+                      >
+                        <Ionicons size={16} name="trash" color="#FFFFFF" />
+                      </Pressable>
+                    </View>
                   </View>
 
                   <Text style={styles.stopTitle} numberOfLines={2}>
@@ -226,7 +250,10 @@ export default function ItineraryScreen() {
                   </Text>
 
                   <Text style={styles.stopAddress} numberOfLines={1}>
-                    {formatLocation(stop.place.location.city, stop.place.location.state)}
+                    {formatLocation(
+                      stop.place.location.city,
+                      stop.place.location.state,
+                    )}
                   </Text>
 
                   <View style={styles.chipRow}>
@@ -281,7 +308,10 @@ export default function ItineraryScreen() {
       </View>
 
       <Pressable
-        style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+        style={[
+          styles.generateButton,
+          isGenerating && styles.generateButtonDisabled,
+        ]}
         onPress={handleGenerateRoute}
         disabled={isGenerating}
       >
@@ -295,7 +325,8 @@ export default function ItineraryScreen() {
       </Pressable>
 
       <Text style={styles.footerHint}>
-        {generatedItinerary?.summary || "We’ll optimize the order and timings for you"}
+        {generatedItinerary?.summary ||
+          "We’ll optimize the order and timings for you"}
       </Text>
     </ScrollView>
   );
@@ -499,6 +530,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#102C26",
+  },
+  stopActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,0,0,0.6)",
   },
   stopTitle: {
     fontSize: 16,
