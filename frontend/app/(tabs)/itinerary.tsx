@@ -4,8 +4,9 @@ import {
   type GeneratedItineraryStop,
 } from "@/context/SavedPlacesContext";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useCallback } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -217,8 +218,8 @@ export default function ItineraryScreen() {
 
         {stopsWithPlaces.map(({ stop, place }) => {
           const priceLabel = formatPrice(
-            place.estimatedCost.min,
-            place.estimatedCost.max,
+            stop.place.estimatedCost.min,
+            stop.place.estimatedCost.max,
           );
 
           return (
