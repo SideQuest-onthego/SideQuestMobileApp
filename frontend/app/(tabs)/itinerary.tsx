@@ -585,19 +585,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#102C26",
   },
-  stopActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  deleteButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255,0,0,0.6)",
-  },
   stopTitle: {
     fontSize: 16,
     fontWeight: "800",

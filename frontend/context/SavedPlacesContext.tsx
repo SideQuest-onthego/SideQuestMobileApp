@@ -76,7 +76,11 @@ export function useSavedPlaces() {
   return context;
 }
 
-export function SavedPlacesProvider({ children }: { children: ReactNode }) {
+export function SavedPlacesProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [savedPlaces, setSavedPlaces] = useState<ActivityModel[]>([]);
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [generatedItinerary, setGeneratedItinerary] =
@@ -357,7 +361,6 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       void saveToFirestore(updated, updatedSelection, nextGenerated);
       return updated;
     });
-    setItineraryPlaces((prev) => prev.filter((p) => p.id !== placeId));
   };
 
   // itinerary logic
