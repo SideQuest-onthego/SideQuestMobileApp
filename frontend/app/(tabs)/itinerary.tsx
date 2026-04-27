@@ -1,8 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import {
-  useSavedPlaces,
-  type GeneratedItineraryStop,
-} from "@/context/SavedPlacesContext";
+import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import { buildItineraryViewModel } from "@/services/itineraryEngine";
+import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import {
@@ -49,7 +48,7 @@ function formatHours(minutes: number) {
   return `${hours}h ${remainder}m`;
 }
 
-function TravelRow({ stop }: { stop: GeneratedItineraryStop }) {
+function TravelRow({ stop }: { stop: ItineraryStopResult }) {
   if (stop.order === 1 || stop.travelTimeMinsFromPrevious <= 0) {
     return null;
   }
@@ -71,179 +70,6 @@ function TravelRow({ stop }: { stop: GeneratedItineraryStop }) {
   );
 }
 
-// Calculate distance between two coordinates in miles (haversine formula)
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-): number {
-  const R = 3958.8; // Earth's radius in miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// Calculate trip duration in hours
-function calculateTripDuration(stops: any[]): number {
-  const validStops = stops.filter((s) => s.location?.lat && s.location?.lng);
-
-  if (validStops.length === 0) return 0;
-
-  // Time spent at each location (1.5 hours per stop)
-  const timePerStop = 1.5;
-  const timeAtLocations = validStops.length * timePerStop;
-
-  // Travel time between stops (estimated at 30 mph average)
-  const averageSpeed = 30; // mph
-  let travelDistance = 0;
-
-  for (let i = 0; i < validStops.length - 1; i++) {
-    const currentStop = validStops[i];
-    const nextStop = validStops[i + 1];
-
-    const distance = calculateDistance(
-      currentStop.location.lat,
-      currentStop.location.lng,
-      nextStop.location.lat,
-      nextStop.location.lng
-    );
-
-    travelDistance += distance;
-  }
-
-  const travelTime = travelDistance / averageSpeed;
-
-  return timeAtLocations + travelTime;
-}
-
-// Format time object to string (HH:MM AM/PM)
-function formatTimeString(hours: number, minutes: number): string {
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
-}
-
-// Parse time string to hours and minutes
-function parseTimeString(timeStr: string): { hours: number; minutes: number } | null {
-  const match = timeStr.match(/(\d{1,2}):(\d{2})\s(AM|PM)/i);
-  if (!match) return null;
-
-  let hours = parseInt(match[1]);
-  const minutes = parseInt(match[2]);
-  const period = match[3].toUpperCase();
-
-  if (period === "PM" && hours !== 12) hours += 12;
-  if (period === "AM" && hours === 12) hours = 0;
-
-  return { hours, minutes };
-}
-
-// MTA Subway station database for major NYC locations
-const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } = {
-  "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
-  "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
-  "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
-  "met museum": { station: "86th Street", lines: ["4", "5"] },
-  "brooklyn bridge": { station: "Brooklyn Bridge-City Hall", lines: ["4", "5", "6"] },
-  "times square": { station: "Times Square-42nd Street", lines: ["1", "2", "3", "7", "A", "C", "E"] },
-  "central park": { station: "59th Street-Columbus Circle", lines: ["1", "A", "B", "C", "D"] },
-  "empire state building": { station: "34th Street-Herald Square", lines: ["B", "D", "F", "M", "N", "Q", "R", "W"] },
-  "grand central": { station: "Grand Central-42nd Street", lines: ["4", "5", "6", "7"] },
-};
-
-// Get nearest MTA station for a place
-function getNearestMTAStation(place: any): { station: string; lines: string[] } | null {
-  const placeName = place.name?.toLowerCase() || "";
-  
-  // Check for direct match
-  for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
-    if (placeName.includes(key)) {
-      return value;
-    }
-  }
-  
-  // Default fallback (could be enhanced with real geocoding)
-  return null;
-}
-
-// Get transit directions between two stops
-function getTransitDirections(fromPlace: any, toPlace: any): string {
-  const fromStation = getNearestMTAStation(fromPlace);
-  const toStation = getNearestMTAStation(toPlace);
-
-  if (!fromStation || !toStation) {
-    return "Check MTA website for directions";
-  }
-
-  // Find common lines or suggest transfer
-  const commonLines = fromStation.lines.filter((line) =>
-    toStation.lines.includes(line)
-  );
-
-  if (commonLines.length > 0) {
-    return `Take ${commonLines.join("/")} train from ${fromStation.station} to ${toStation.station}`;
-  } else {
-    // Suggest a transfer (simplified logic)
-    return `From ${fromStation.station} (${fromStation.lines.join("/")}), transfer to ${toStation.station} (${toStation.lines.join("/")})`;
-  }
-}
-
-// Calculate arrival times for all stops
-function calculateArrivalTimes(
-  stops: any[],
-  startHours: number,
-  startMinutes: number
-): string[] {
-  const timePerStop = 1.5; // hours
-  const averageSpeed = 30; // mph
-
-  let currentHours = startHours;
-  let currentMinutes = startMinutes;
-  const arrivalTimes: string[] = [];
-
-  for (let i = 0; i < stops.length; i++) {
-    // Add arrival time at this stop
-    arrivalTimes.push(formatTimeString(currentHours, currentMinutes));
-
-    // If not the last stop, calculate travel time to next stop
-    if (i < stops.length - 1) {
-      const currentStop = stops[i];
-      const nextStop = stops[i + 1];
-
-      if (currentStop.location?.lat && nextStop.location?.lat) {
-        // Travel time
-        const distance = calculateDistance(
-          currentStop.location.lat,
-          currentStop.location.lng,
-          nextStop.location.lat,
-          nextStop.location.lng
-        );
-        const travelTimeHours = distance / averageSpeed;
-
-        // Time at current location
-        const totalMinutes =
-          currentMinutes + (travelTimeHours + timePerStop) * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      } else {
-        // Fallback: just add time per stop
-        const totalMinutes = currentMinutes + timePerStop * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      }
-    }
-  }
-
-  return arrivalTimes;
-}
-
 export default function ItineraryScreen() {
   const router = useRouter();
   const {
@@ -253,25 +79,10 @@ export default function ItineraryScreen() {
     removeFromItinerary,
   } = useSavedPlaces();
 
-  const stopsWithPlaces = useMemo(() => {
-    if (!generatedItinerary) {
-      return [];
-    }
-
-    return generatedItinerary.stops
-      .map((stop) => ({
-        stop,
-        place: itineraryPlaces.find((place) => place.id === stop.placeId) ?? null,
-      }))
-      .filter(
-        (
-          item,
-        ): item is {
-          stop: GeneratedItineraryStop;
-          place: (typeof itineraryPlaces)[number];
-        } => item.place !== null,
-      );
-  }, [generatedItinerary, itineraryPlaces]);
+  const itineraryView = useMemo(
+    () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
+    [generatedItinerary, itineraryPlaces],
+  );
 
   if (itineraryPlaces.length < 5) {
     const placesNeeded = 5 - itineraryPlaces.length;
@@ -387,7 +198,7 @@ export default function ItineraryScreen() {
       <View style={styles.timelineWrapper}>
         <View style={styles.timelineRail} />
 
-        {stopsWithPlaces.map(({ stop, place }) => {
+        {itineraryView.map(({ stop, place }) => {
           const priceLabel = formatPrice(
             place.estimatedCost?.min ?? 0,
             place.estimatedCost?.max ?? 0,
