@@ -15,6 +15,9 @@ import {
   StyleSheet,
   Text,
   View,
+  Platform,
+  Modal,
+  TextInput,
 } from "react-native";
 
 function formatPrice(min: number, max: number) {
@@ -55,6 +58,179 @@ function formatLocation(city?: string, state?: string) {
   }
 
   return "Location unavailable";
+}
+
+// Calculate distance between two coordinates in miles (haversine formula)
+function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 3958.8; // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Calculate trip duration in hours
+function calculateTripDuration(stops: any[]): number {
+  const validStops = stops.filter((s) => s.location?.lat && s.location?.lng);
+
+  if (validStops.length === 0) return 0;
+
+  // Time spent at each location (1.5 hours per stop)
+  const timePerStop = 1.5;
+  const timeAtLocations = validStops.length * timePerStop;
+
+  // Travel time between stops (estimated at 30 mph average)
+  const averageSpeed = 30; // mph
+  let travelDistance = 0;
+
+  for (let i = 0; i < validStops.length - 1; i++) {
+    const currentStop = validStops[i];
+    const nextStop = validStops[i + 1];
+
+    const distance = calculateDistance(
+      currentStop.location.lat,
+      currentStop.location.lng,
+      nextStop.location.lat,
+      nextStop.location.lng
+    );
+
+    travelDistance += distance;
+  }
+
+  const travelTime = travelDistance / averageSpeed;
+
+  return timeAtLocations + travelTime;
+}
+
+// Format time object to string (HH:MM AM/PM)
+function formatTimeString(hours: number, minutes: number): string {
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+// Parse time string to hours and minutes
+function parseTimeString(timeStr: string): { hours: number; minutes: number } | null {
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s(AM|PM)/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1]);
+  const minutes = parseInt(match[2]);
+  const period = match[3].toUpperCase();
+
+  if (period === "PM" && hours !== 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+
+  return { hours, minutes };
+}
+
+// MTA Subway station database for major NYC locations
+const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } = {
+  "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
+  "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
+  "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
+  "met museum": { station: "86th Street", lines: ["4", "5"] },
+  "brooklyn bridge": { station: "Brooklyn Bridge-City Hall", lines: ["4", "5", "6"] },
+  "times square": { station: "Times Square-42nd Street", lines: ["1", "2", "3", "7", "A", "C", "E"] },
+  "central park": { station: "59th Street-Columbus Circle", lines: ["1", "A", "B", "C", "D"] },
+  "empire state building": { station: "34th Street-Herald Square", lines: ["B", "D", "F", "M", "N", "Q", "R", "W"] },
+  "grand central": { station: "Grand Central-42nd Street", lines: ["4", "5", "6", "7"] },
+};
+
+// Get nearest MTA station for a place
+function getNearestMTAStation(place: any): { station: string; lines: string[] } | null {
+  const placeName = place.name?.toLowerCase() || "";
+  
+  // Check for direct match
+  for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
+    if (placeName.includes(key)) {
+      return value;
+    }
+  }
+  
+  // Default fallback (could be enhanced with real geocoding)
+  return null;
+}
+
+// Get transit directions between two stops
+function getTransitDirections(fromPlace: any, toPlace: any): string {
+  const fromStation = getNearestMTAStation(fromPlace);
+  const toStation = getNearestMTAStation(toPlace);
+
+  if (!fromStation || !toStation) {
+    return "Check MTA website for directions";
+  }
+
+  // Find common lines or suggest transfer
+  const commonLines = fromStation.lines.filter((line) =>
+    toStation.lines.includes(line)
+  );
+
+  if (commonLines.length > 0) {
+    return `Take ${commonLines.join("/")} train from ${fromStation.station} to ${toStation.station}`;
+  } else {
+    // Suggest a transfer (simplified logic)
+    return `From ${fromStation.station} (${fromStation.lines.join("/")}), transfer to ${toStation.station} (${toStation.lines.join("/")})`;
+  }
+}
+
+// Calculate arrival times for all stops
+function calculateArrivalTimes(
+  stops: any[],
+  startHours: number,
+  startMinutes: number
+): string[] {
+  const timePerStop = 1.5; // hours
+  const averageSpeed = 30; // mph
+
+  let currentHours = startHours;
+  let currentMinutes = startMinutes;
+  const arrivalTimes: string[] = [];
+
+  for (let i = 0; i < stops.length; i++) {
+    // Add arrival time at this stop
+    arrivalTimes.push(formatTimeString(currentHours, currentMinutes));
+
+    // If not the last stop, calculate travel time to next stop
+    if (i < stops.length - 1) {
+      const currentStop = stops[i];
+      const nextStop = stops[i + 1];
+
+      if (currentStop.location?.lat && nextStop.location?.lat) {
+        // Travel time
+        const distance = calculateDistance(
+          currentStop.location.lat,
+          currentStop.location.lng,
+          nextStop.location.lat,
+          nextStop.location.lng
+        );
+        const travelTimeHours = distance / averageSpeed;
+
+        // Time at current location
+        const totalMinutes =
+          currentMinutes + (travelTimeHours + timePerStop) * 60;
+        currentHours += Math.floor(totalMinutes / 60);
+        currentMinutes = Math.floor(totalMinutes % 60);
+      } else {
+        // Fallback: just add time per stop
+        const totalMinutes = currentMinutes + timePerStop * 60;
+        currentHours += Math.floor(totalMinutes / 60);
+        currentMinutes = Math.floor(totalMinutes % 60);
+      }
+    }
+  }
+
+  return arrivalTimes;
 }
 
 export default function ItineraryScreen() {
@@ -117,6 +293,10 @@ export default function ItineraryScreen() {
     );
   }
 
+  // Load MapView only on native platforms
+  const MapView = Platform.OS !== "web" ? require("react-native-maps").default : null;
+  const { Marker, Polyline } = Platform.OS !== "web" ? require("react-native-maps") : {};
+
   return (
     <ScrollView
       style={styles.container}
@@ -143,6 +323,53 @@ export default function ItineraryScreen() {
         </Pressable>
       </View>
 
+      {/* Start Time Selector */}
+      <View style={styles.startTimeCard}>
+        <View style={styles.startTimeHeader}>
+          <Text style={styles.startTimeLabel}>Start Time</Text>
+          <Text style={styles.startTimeValue}>
+            {formatTimeString(startHours, startMinutes)}
+          </Text>
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.quickTimesScroll}
+        >
+          {quickTimes.map((time, index) => (
+            <Pressable
+              key={index}
+              style={[
+                styles.quickTimeButton,
+                startHours === time.hours && startMinutes === time.minutes
+                  ? styles.quickTimeButtonActive
+                  : null,
+              ]}
+              onPress={() => handleQuickTime(time.hours, time.minutes)}
+            >
+              <Text
+                style={[
+                  styles.quickTimeButtonText,
+                  startHours === time.hours && startMinutes === time.minutes
+                    ? styles.quickTimeButtonTextActive
+                    : null,
+                ]}
+              >
+                {time.label}
+              </Text>
+            </Pressable>
+          ))}
+
+          <Pressable
+            style={styles.customTimeButton}
+            onPress={() => setShowCustomTimeModal(true)}
+          >
+            <Text style={styles.customTimeButtonText}>Custom</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryIconBox}>
           <IconSymbol size={28} name="map" color="#102C26" />
@@ -165,6 +392,34 @@ export default function ItineraryScreen() {
         </View>
       </View>
 
+      {/* Transit Directions */}
+      {itineraryStops.length > 1 && (
+        <View style={styles.transitCard}>
+          <View style={styles.transitHeader}>
+            <IconSymbol size={20} name="tram" color="#102C26" />
+            <Text style={styles.transitTitle}>Train Directions</Text>
+          </View>
+
+          {itineraryStops.map((place, index) => {
+            if (index === itineraryStops.length - 1) return null; // Skip last stop
+
+            const nextPlace = itineraryStops[index + 1];
+            const transitDirection = getTransitDirections(place, nextPlace);
+
+            return (
+              <View key={`transit-${index}`} style={styles.transitItem}>
+                <View style={styles.transitItemNumber}>
+                  <Text style={styles.transitItemNumberText}>{index + 1}</Text>
+                  <View style={styles.transitArrow} />
+                  <Text style={styles.transitItemNumberText}>{index + 2}</Text>
+                </View>
+                <Text style={styles.transitDirectionText}>{transitDirection}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.stopsHeader}>
         <View style={styles.stopsHeaderLeft}>
           <IconSymbol size={18} name="list.bullet" color="#102C26" />
@@ -180,6 +435,7 @@ export default function ItineraryScreen() {
             stop.place.estimatedCost.min,
             stop.place.estimatedCost.max,
           );
+          const arrivalTime = arrivalTimes[index] || "TBD";
 
           return (
             <View key={stop.place.id} style={styles.stopRow}>
@@ -266,10 +522,54 @@ export default function ItineraryScreen() {
       </View>
 
       <View style={styles.mapCard}>
-        <View style={styles.mapPlaceholder}>
-          <IconSymbol size={28} name="map" color="#46655F" />
-          <Text style={styles.mapPlaceholderText}>Map preview coming soon</Text>
-        </View>
+        {Platform.OS !== "web" && MapView && routeCoordinates.length > 0 ? (
+          <View style={styles.mapContainer}>
+            <MapView
+              ref={mapRef}
+              style={styles.mapPreview}
+              mapType="standard"
+              scrollEnabled={false}
+              zoomEnabled={false}
+              rotateEnabled={false}
+              pitchEnabled={false}
+              initialRegion={mapInitialRegion}
+            >
+              {/* Draw route polyline connecting all stops */}
+              {Polyline && (
+                <Polyline
+                  coordinates={routeCoordinates}
+                  strokeColor="#FF6600"
+                  strokeWidth={3}
+                  lineDashPattern={[0]}
+                />
+              )}
+
+              {/* Markers for each stop */}
+              {Marker &&
+                itineraryStops.map((place, index) => {
+                  if (!place.location?.lat || !place.location?.lng) return null;
+
+                  return (
+                    <Marker
+                      key={place.id}
+                      coordinate={{
+                        latitude: place.location.lat,
+                        longitude: place.location.lng,
+                      }}
+                      pinColor={index === 0 ? "#0066FF" : "#FF6600"}
+                      title={place.name}
+                      description={`Stop ${index + 1}`}
+                    />
+                  );
+                })}
+            </MapView>
+          </View>
+        ) : (
+          <View style={styles.mapPlaceholder}>
+            <IconSymbol size={28} name="map" color="#46655F" />
+            <Text style={styles.mapPlaceholderText}>Map preview coming soon</Text>
+          </View>
+        )}
 
         <Pressable
           style={styles.routeButton}
@@ -297,6 +597,41 @@ export default function ItineraryScreen() {
       <Text style={styles.footerHint}>
         {generatedItinerary?.summary || "We’ll optimize the order and timings for you"}
       </Text>
+
+      {/* Custom Time Modal */}
+      <Modal
+        visible={showCustomTimeModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCustomTimeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Set Custom Time</Text>
+            <TextInput
+              style={styles.timeInput}
+              placeholder="HH:MM AM/PM"
+              placeholderTextColor="#999"
+              value={customTimeInput}
+              onChangeText={setCustomTimeInput}
+            />
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setShowCustomTimeModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalConfirm}
+                onPress={handleCustomTime}
+              >
+                <Text style={styles.modalConfirmText}>Set Time</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -352,6 +687,69 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: "#FFFFFF",
   },
+  startTimeCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#102C26",
+    padding: 16,
+    marginBottom: 18,
+  },
+  startTimeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  startTimeLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6C757D",
+  },
+  startTimeValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#102C26",
+  },
+  quickTimesScroll: {
+    marginHorizontal: -16,
+    paddingHorizontal: 16,
+  },
+  quickTimeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#F0F0F0",
+    borderWidth: 1.5,
+    borderColor: "#E0E0E0",
+    marginRight: 8,
+  },
+  quickTimeButtonActive: {
+    backgroundColor: "#103B34",
+    borderColor: "#103B34",
+  },
+  quickTimeButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#48525A",
+  },
+  quickTimeButtonTextActive: {
+    color: "#FFFFFF",
+  },
+  customTimeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#102C26",
+    marginRight: 8,
+  },
+  customTimeButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#102C26",
+  },
   summaryCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -395,6 +793,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#6C757D",
+  },
+  transitCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#102C26",
+    padding: 16,
+    marginBottom: 24,
+  },
+  transitHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 16,
+  },
+  transitTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#102C26",
+  },
+  transitItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#F9FBFD",
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  transitItemNumber: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 60,
+  },
+  transitItemNumberText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#102C26",
+    backgroundColor: "#CFEFE9",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  transitArrow: {
+    width: 20,
+    height: 2,
+    backgroundColor: "#102C26",
+  },
+  transitDirectionText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#34524C",
+    lineHeight: 20,
   },
   stopsHeader: {
     marginBottom: 14,
@@ -572,9 +1026,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 22,
   },
-  mapPreview: {
-    height: 140,
+  mapContainer: {
     width: "100%",
+    height: 200,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  mapPreview: {
+    width: "100%",
+    height: "100%",
   },
   mapPlaceholder: {
     height: 140,
@@ -649,5 +1109,62 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: "center",
     color: "#34524C",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 32,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#102C26",
+    marginBottom: 16,
+  },
+  timeInput: {
+    borderWidth: 1.5,
+    borderColor: "#102C26",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#102C26",
+    marginBottom: 20,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#102C26",
+    alignItems: "center",
+  },
+  modalCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#102C26",
+  },
+  modalConfirm: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: "#103B34",
+    alignItems: "center",
+  },
+  modalConfirmText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
