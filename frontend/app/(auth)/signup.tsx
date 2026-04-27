@@ -20,24 +20,16 @@ export default function SignUpScreen() {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [confirmPassword, setConfirmPassword] = useState<string>(""); // NEW
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
   async function handleSignUp() {
     setError("");
-
-    if (!name || !email || !password || !confirmPassword) {
+    if (!name || !email || !password) {
       setError("Please fill in all fields.");
       return;
     }
-
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-
     setLoading(true);
     try {
       const credential = await createUserWithEmailAndPassword(auth, email, password);
@@ -131,21 +123,6 @@ export default function SignUpScreen() {
                   color="#2D6A4F"
                 />
               </TouchableOpacity>
-            </View>
-
-            {/* Confirm Password */}
-            <Text style={styles.label}>Confirm Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Re-enter your password"
-                placeholderTextColor="#aaa"
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-              />
             </View>
 
             {/* Error message */}

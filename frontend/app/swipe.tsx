@@ -1,63 +1,96 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { doc, getDoc } from "firebase/firestore";
 
+import { auth, db } from "../FirebaseConfig";
 import SwipeDeck from "../components/SwipeDeck";
 import { places } from "../data/places";
-import { fetchNearbyManhattanPlacesPage } from "../services/googlePlaces";
-import {
-  DEFAULT_PREFERENCES,
-  loadUserSearchPreferences,
-} from "../services/userPreferences";
-import { rankPlacesByPreferences } from "../services/placeRanking";
+import { fetchNearbyManhattanPlaces } from "../services/googlePlaces";
 import type { ActivityModel } from "../types/sidequest-models";
 
+const DEFAULT_DISTANCE_MILES = 10;
 const MILES_TO_METERS = 1609.34;
+const MANHATTAN_ORIGIN = { lat: 40.712778, lng: -74.006111 };
+
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function getDistanceMiles(place: ActivityModel): number {
+  const lat1 = toRadians(MANHATTAN_ORIGIN.lat);
+  const lon1 = toRadians(MANHATTAN_ORIGIN.lng);
+  const lat2 = toRadians(place.location.lat);
+  const lon2 = toRadians(place.location.lng);
+
+  const dLat = lat2 - lat1;
+  const dLon = lon2 - lon1;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const earthRadiusMiles = 3958.8;
+
+  return earthRadiusMiles * c;
+}
 
 export default function SwipeScreen() {
   const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preferredDistance, setPreferredDistance] = useState(
-    DEFAULT_PREFERENCES.distance,
+    DEFAULT_DISTANCE_MILES,
   );
-  const [preferredBudget, setPreferredBudget] = useState(
-    DEFAULT_PREFERENCES.budget,
-  );
-  const [nextCursor, setNextCursor] = useState<number | null>(0);
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
     async function loadRecommendations() {
       setLoading(true);
-      const preferences = await loadUserSearchPreferences();
-      const distanceMiles = preferences.distance;
+
+      let distanceMiles = DEFAULT_DISTANCE_MILES;
+
+      if (auth.currentUser) {
+        try {
+          const snapshot = await getDoc(
+            doc(db, "userPreferences", auth.currentUser.uid),
+          );
+
+          if (
+            snapshot.exists() &&
+            typeof snapshot.data().distance === "number" &&
+            snapshot.data().distance > 0
+          ) {
+            distanceMiles = snapshot.data().distance;
+          }
+        } catch (e) {
+          if (mounted) {
+            const message =
+              e instanceof Error ? e.message : "Failed to load preferences";
+            setError(message);
+          }
+        }
+      }
 
       if (mounted) {
         setPreferredDistance(distanceMiles);
-        setPreferredBudget(preferences.budget);
       }
 
       try {
-        const firstPage = await fetchNearbyManhattanPlacesPage(
+        const livePlaces = await fetchNearbyManhattanPlaces(
           distanceMiles * MILES_TO_METERS,
-          0,
         );
 
         if (!mounted) {
           return;
         }
 
-        if (firstPage.places.length > 0) {
-          setData(rankPlacesByPreferences(firstPage.places, preferences));
-          setNextCursor(firstPage.nextCursor);
+        if (livePlaces.length > 0) {
+          setData(livePlaces);
           setError(null);
         } else {
-          setData(rankPlacesByPreferences(places, preferences));
-          setNextCursor(null);
+          setData(places);
           setError(
-            "No live places matched your distance and budget, so showing the closest available recommendations.",
+            "No live places matched that distance, so showing fallback recommendations.",
           );
         }
       } catch (e) {
@@ -68,8 +101,7 @@ export default function SwipeScreen() {
         const message =
           e instanceof Error ? e.message : "Failed to load places";
         setError(message);
-        setData(rankPlacesByPreferences(places, preferences));
-        setNextCursor(null);
+        setData(places);
       } finally {
         if (mounted) {
           setLoading(false);
@@ -83,35 +115,13 @@ export default function SwipeScreen() {
     };
   }, []);
 
-  async function handleLoadMore() {
-    if (loading || isLoadingMore || nextCursor === null) {
-      return;
-    }
+  const rankedPlaces = useMemo(() => {
+    return [...data]
+      .filter((place) => getDistanceMiles(place) <= preferredDistance)
+      .sort((a, b) => getDistanceMiles(a) - getDistanceMiles(b));
+  }, [data, preferredDistance]);
 
-    setIsLoadingMore(true);
-
-    try {
-      const preferences = await loadUserSearchPreferences();
-      const page = await fetchNearbyManhattanPlacesPage(
-        preferences.distance * MILES_TO_METERS,
-        nextCursor,
-      );
-
-      setData((prev) => {
-        const merged = new Map(prev.map((place) => [place.id, place]));
-        for (const place of page.places) {
-          merged.set(place.id, place);
-        }
-        return rankPlacesByPreferences(Array.from(merged.values()), preferences);
-      });
-      setNextCursor(page.nextCursor);
-    } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to load more places";
-      setError(message);
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }
+  const displayedPlaces = rankedPlaces.length > 0 ? rankedPlaces : data;
 
   return (
     <View style={styles.container}>
@@ -119,19 +129,13 @@ export default function SwipeScreen() {
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
           <Text style={styles.loadingText}>
-            Loading places within {preferredDistance} miles and under $
-            {preferredBudget}...
+            Loading places within {preferredDistance} miles of Manhattan...
           </Text>
         </View>
-        ) : (
+      ) : (
         <>
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          <SwipeDeck
-            data={data}
-            onNearEnd={handleLoadMore}
-            hasMore={nextCursor !== null}
-            isLoadingMore={isLoadingMore}
-          />
+          <SwipeDeck data={displayedPlaces} />
         </>
       )}
     </View>

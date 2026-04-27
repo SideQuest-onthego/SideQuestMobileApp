@@ -5,20 +5,10 @@ import { useLocation } from "@/context/LocationContext";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import * as Location from "expo-location";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import React, { useCallback, useEffect, useReducer, useState } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 //Options arrays for dietary restrictions and accessibility needs
 const DIETARY_OPTIONS = [
@@ -40,29 +30,6 @@ const ACCESSIBILITY_OPTIONS = [
   "None",
 ];
 
-const LOCATION_OPTIONS = [
-  {
-    label: "New York City",
-    coords: { latitude: 40.7128, longitude: -74.006 },
-  },
-  {
-    label: "Brooklyn",
-    coords: { latitude: 40.6782, longitude: -73.9442 },
-  },
-  {
-    label: "Jersey City",
-    coords: { latitude: 40.7178, longitude: -74.0431 },
-  },
-  {
-    label: "Hoboken",
-    coords: { latitude: 40.7433, longitude: -74.0282 },
-  },
-  {
-    label: "Philadelphia",
-    coords: { latitude: 39.9526, longitude: -75.1652 },
-  },
-];
-
 //State management for user preferences using useReducer
 type PreferencesState = {
   budget: number;
@@ -72,11 +39,6 @@ type PreferencesState = {
 
 type PreferencesDocument = PreferencesState & {
   distance?: number; // Distance from Firestore
-  location?: {
-    latitude: number;
-    longitude: number;
-    label?: string;
-  } | null;
   updatedAt?: unknown;
 };
 
@@ -138,15 +100,12 @@ export default function AccountScreen() {
   const router = useRouter();
 
   // Get distance from LocationContext (synced across all screens)
-  const { userLocation, setUserLocation, radiusMiles, setRadiusMiles } =
-    useLocation();
+  const { radiusMiles, setRadiusMiles } = useLocation();
 
   const [displayName, setDisplayName] = useState("your_name");
   const [state, dispatch] = useReducer(preferencesReducer, initialState);
   const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [selectedLocationLabel, setSelectedLocationLabel] = useState("");
-  const [loadingGPS, setLoadingGPS] = useState(false);
 
   const refreshDisplayName = useCallback(() => {
     setDisplayName(auth.currentUser?.displayName?.trim() || "your_name");
@@ -158,8 +117,6 @@ export default function AccountScreen() {
 
       if (!user) {
         dispatch({ type: "REPLACE_ALL", value: initialState });
-        setUserLocation(null);
-        setSelectedLocationLabel("");
         setRadiusMiles(10); // Reset distance to default
         setHasLoadedPreferences(true);
         setSaveError("");
@@ -178,23 +135,6 @@ export default function AccountScreen() {
           // Sync distance from Firestore to LocationContext
           if (typeof data.distance === "number") {
             setRadiusMiles(data.distance);
-          }
-
-          if (
-            data.location &&
-            typeof data.location.latitude === "number" &&
-            typeof data.location.longitude === "number"
-          ) {
-            setUserLocation({
-              latitude: data.location.latitude,
-              longitude: data.location.longitude,
-            });
-            setSelectedLocationLabel(
-              data.location.label?.trim() || "Saved location",
-            );
-          } else {
-            setUserLocation(null);
-            setSelectedLocationLabel("");
           }
 
           dispatch({
@@ -218,8 +158,6 @@ export default function AccountScreen() {
           });
         } else {
           dispatch({ type: "REPLACE_ALL", value: initialState });
-          setUserLocation(null);
-          setSelectedLocationLabel("");
         }
 
         setSaveError("");
@@ -227,15 +165,13 @@ export default function AccountScreen() {
         console.error("Failed to load user preferences:", error);
         setSaveError("Couldn't load saved preferences.");
         dispatch({ type: "REPLACE_ALL", value: initialState });
-        setUserLocation(null);
-        setSelectedLocationLabel("");
       } finally {
         setHasLoadedPreferences(true);
       }
     });
 
     return unsubscribe;
-  }, [setRadiusMiles, setUserLocation]);
+  }, [setRadiusMiles]);
 
   // Save preferences to Firestore whenever they change
   useEffect(() => {
@@ -250,12 +186,6 @@ export default function AccountScreen() {
           {
             ...state,
             distance: radiusMiles, // Include distance from context
-            location: userLocation
-              ? {
-                  ...userLocation,
-                  label: selectedLocationLabel || "Saved location",
-                }
-              : null,
             updatedAt: serverTimestamp(),
           },
           { merge: true },
@@ -268,50 +198,7 @@ export default function AccountScreen() {
     }, 400);
 
     return () => clearTimeout(timeoutId);
-  }, [
-    hasLoadedPreferences,
-    radiusMiles,
-    selectedLocationLabel,
-    state,
-    userLocation,
-  ]);
-
-  async function handleUseCurrentLocation() {
-    setLoadingGPS(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert("Permission Denied", "Location access is required.");
-        return;
-      }
-
-      const loc = await Location.getCurrentPositionAsync({});
-      const coords = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      };
-
-      setUserLocation(coords);
-
-      const reverse = await Location.reverseGeocodeAsync(coords);
-      if (reverse && reverse.length > 0) {
-        const place = reverse[0];
-        const label = [place.city, place.region].filter(Boolean).join(", ");
-        setSelectedLocationLabel(label || "Current location");
-      } else {
-        setSelectedLocationLabel("Current location");
-      }
-    } catch {
-      Alert.alert("Error", "Could not get your location. Please try again.");
-    } finally {
-      setLoadingGPS(false);
-    }
-  }
-
-  function handleSelectPresetLocation(option: (typeof LOCATION_OPTIONS)[number]) {
-    setUserLocation(option.coords);
-    setSelectedLocationLabel(option.label);
-  }
+  }, [hasLoadedPreferences, state, radiusMiles]);
 
   useFocusEffect(
     useCallback(() => {
@@ -343,61 +230,6 @@ export default function AccountScreen() {
 
       <Text style={styles.welcomeText}>Welcome {displayName}</Text>
       {saveError ? <Text style={styles.statusText}>{saveError}</Text> : null}
-
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Location</Text>
-        <Text style={styles.locationDescription}>
-          Set the area you want SideQuest to use for nearby recommendations.
-        </Text>
-
-        <TouchableOpacity
-          style={styles.locationActionButton}
-          onPress={handleUseCurrentLocation}
-          disabled={loadingGPS}
-        >
-          {loadingGPS ? (
-            <ActivityIndicator color="#102C26" size="small" />
-          ) : (
-            <Text style={styles.locationActionText}>Use My Current Location</Text>
-          )}
-        </TouchableOpacity>
-
-        {selectedLocationLabel ? (
-          <View style={styles.selectedLocationPill}>
-            <Text style={styles.selectedLocationLabel}>Selected</Text>
-            <Text style={styles.selectedLocationText}>
-              {selectedLocationLabel}
-            </Text>
-          </View>
-        ) : (
-          <Text style={styles.locationHint}>
-            Choose a saved city or use your current location.
-          </Text>
-        )}
-
-        <View style={styles.chipContainer}>
-          {LOCATION_OPTIONS.map((option) => {
-            const isSelected = selectedLocationLabel === option.label;
-
-            return (
-              <Pressable
-                key={option.label}
-                style={[styles.chip, isSelected && styles.selectedChip]}
-                onPress={() => handleSelectPresetLocation(option)}
-              >
-                <Text
-                  style={[
-                    styles.chipText,
-                    isSelected && styles.selectedChipText,
-                  ]}
-                >
-                  {option.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
 
       {/* Distance preference card - NOW SYNCED WITH MAP AND DISTANCE SCREENS */}
       <View style={styles.card}>
@@ -541,54 +373,6 @@ const styles = StyleSheet.create({
     color: "#B91C1C",
     fontSize: 13,
     fontWeight: "500",
-  },
-  locationDescription: {
-    marginTop: 8,
-    fontSize: 14,
-    lineHeight: 20,
-    color: "#4B635E",
-  },
-  locationActionButton: {
-    marginTop: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#102C26",
-    backgroundColor: "#E8F3F0",
-    paddingVertical: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  locationActionText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#102C26",
-  },
-  selectedLocationPill: {
-    marginTop: 14,
-    borderRadius: 14,
-    backgroundColor: "#F2FBF8",
-    borderWidth: 1,
-    borderColor: "#B7CFC8",
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 4,
-  },
-  selectedLocationLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    color: "#5B746E",
-    letterSpacing: 0.4,
-  },
-  selectedLocationText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#102C26",
-  },
-  locationHint: {
-    marginTop: 14,
-    fontSize: 14,
-    color: "#5B746E",
   },
   headerRow: {
     width: "100%",
