@@ -1,4 +1,5 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Ionicons } from "@expo/vector-icons";
 import {
   useSavedPlaces,
   type GeneratedItineraryStop,
@@ -76,7 +77,7 @@ function calculateDistance(
   lat1: number,
   lon1: number,
   lat2: number,
-  lon2: number
+  lon2: number,
 ): number {
   const R = 3958.8; // Earth's radius in miles
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -112,7 +113,7 @@ function calculateTripDuration(stops: any[]): number {
       currentStop.location.lat,
       currentStop.location.lng,
       nextStop.location.lat,
-      nextStop.location.lng
+      nextStop.location.lng,
     );
 
     travelDistance += distance;
@@ -131,7 +132,9 @@ function formatTimeString(hours: number, minutes: number): string {
 }
 
 // Parse time string to hours and minutes
-function parseTimeString(timeStr: string): { hours: number; minutes: number } | null {
+function parseTimeString(
+  timeStr: string,
+): { hours: number; minutes: number } | null {
   const match = timeStr.match(/(\d{1,2}):(\d{2})\s(AM|PM)/i);
   if (!match) return null;
 
@@ -146,29 +149,47 @@ function parseTimeString(timeStr: string): { hours: number; minutes: number } | 
 }
 
 // MTA Subway station database for major NYC locations
-const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } = {
-  "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
-  "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
-  "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
-  "met museum": { station: "86th Street", lines: ["4", "5"] },
-  "brooklyn bridge": { station: "Brooklyn Bridge-City Hall", lines: ["4", "5", "6"] },
-  "times square": { station: "Times Square-42nd Street", lines: ["1", "2", "3", "7", "A", "C", "E"] },
-  "central park": { station: "59th Street-Columbus Circle", lines: ["1", "A", "B", "C", "D"] },
-  "empire state building": { station: "34th Street-Herald Square", lines: ["B", "D", "F", "M", "N", "Q", "R", "W"] },
-  "grand central": { station: "Grand Central-42nd Street", lines: ["4", "5", "6", "7"] },
-};
+const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } =
+  {
+    "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
+    "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
+    "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
+    "met museum": { station: "86th Street", lines: ["4", "5"] },
+    "brooklyn bridge": {
+      station: "Brooklyn Bridge-City Hall",
+      lines: ["4", "5", "6"],
+    },
+    "times square": {
+      station: "Times Square-42nd Street",
+      lines: ["1", "2", "3", "7", "A", "C", "E"],
+    },
+    "central park": {
+      station: "59th Street-Columbus Circle",
+      lines: ["1", "A", "B", "C", "D"],
+    },
+    "empire state building": {
+      station: "34th Street-Herald Square",
+      lines: ["B", "D", "F", "M", "N", "Q", "R", "W"],
+    },
+    "grand central": {
+      station: "Grand Central-42nd Street",
+      lines: ["4", "5", "6", "7"],
+    },
+  };
 
 // Get nearest MTA station for a place
-function getNearestMTAStation(place: any): { station: string; lines: string[] } | null {
+function getNearestMTAStation(
+  place: any,
+): { station: string; lines: string[] } | null {
   const placeName = place.name?.toLowerCase() || "";
-  
+
   // Check for direct match
   for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
     if (placeName.includes(key)) {
       return value;
     }
   }
-  
+
   // Default fallback (could be enhanced with real geocoding)
   return null;
 }
@@ -184,7 +205,7 @@ function getTransitDirections(fromPlace: any, toPlace: any): string {
 
   // Find common lines or suggest transfer
   const commonLines = fromStation.lines.filter((line) =>
-    toStation.lines.includes(line)
+    toStation.lines.includes(line),
   );
 
   if (commonLines.length > 0) {
@@ -199,7 +220,7 @@ function getTransitDirections(fromPlace: any, toPlace: any): string {
 function calculateArrivalTimes(
   stops: any[],
   startHours: number,
-  startMinutes: number
+  startMinutes: number,
 ): string[] {
   const timePerStop = 1.5; // hours
   const averageSpeed = 30; // mph
@@ -223,7 +244,7 @@ function calculateArrivalTimes(
           currentStop.location.lat,
           currentStop.location.lng,
           nextStop.location.lat,
-          nextStop.location.lng
+          nextStop.location.lng,
         );
         const travelTimeHours = distance / averageSpeed;
 
@@ -261,7 +282,8 @@ export default function ItineraryScreen() {
     return generatedItinerary.stops
       .map((stop) => ({
         stop,
-        place: itineraryPlaces.find((place) => place.id === stop.placeId) ?? null,
+        place:
+          itineraryPlaces.find((place) => place.id === stop.placeId) ?? null,
       }))
       .filter(
         (
@@ -434,8 +456,21 @@ export default function ItineraryScreen() {
                           {stop.durationMins} min stop
                         </Text>
                       </View>
-
-                      <Text style={styles.priceText}>{priceLabel}</Text>
+                      <View style={styles.stopActionsRow}>
+                        <Pressable
+                          style={styles.deleteButton}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            removeFromItinerary(place.id);
+                          }}
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={16}
+                            color="#FFFFFF"
+                          />
+                        </Pressable>
+                      </View>
                     </View>
 
                     <Text style={styles.stopTitle} numberOfLines={2}>
@@ -478,18 +513,6 @@ export default function ItineraryScreen() {
                         </View>
                       ) : null}
                     </View>
-
-                    <Pressable
-                      style={styles.removeButton}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        removeFromItinerary(place.id);
-                      }}
-                    >
-                      <Text style={styles.removeButtonText}>
-                        Remove from itinerary
-                      </Text>
-                    </Pressable>
                   </View>
                 </Pressable>
               </View>
@@ -501,9 +524,7 @@ export default function ItineraryScreen() {
       <View style={styles.mapCard}>
         <View style={styles.mapPlaceholder}>
           <IconSymbol size={28} name="map" color="#46655F" />
-          <Text style={styles.mapPlaceholderText}>
-            Map preview coming soon
-          </Text>
+          <Text style={styles.mapPlaceholderText}>Map preview coming soon</Text>
         </View>
 
         <Pressable
