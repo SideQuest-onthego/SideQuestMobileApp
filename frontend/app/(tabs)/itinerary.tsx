@@ -1,8 +1,14 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
-import { useRouter } from "expo-router";
-import React, { useMemo, useRef, useState } from "react";
 import {
+  generateItineraryWithGemini,
+  type GeneratedItinerary,
+  type ItineraryStop,
+} from "@/services/geminiItinerary";
+import { useRouter } from "expo-router";
+import React, { useMemo, useState, useCallback } from "react";
+import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -229,113 +235,52 @@ function calculateArrivalTimes(
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const { savedPlaces } = useSavedPlaces();
-  const mapRef = useRef<any>(null);
+  const { itineraryPlaces } = useSavedPlaces();
+  const [generatedItinerary, setGeneratedItinerary] =
+    useState<GeneratedItinerary | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Start time state
-  const [startHours, setStartHours] = useState(10); // Default 10:00 AM
-  const [startMinutes, setStartMinutes] = useState(0);
-  const [showCustomTimeModal, setShowCustomTimeModal] = useState(false);
-  const [customTimeInput, setCustomTimeInput] = useState("10:00 AM");
-
-  const itineraryStops = useMemo(() => {
-    return savedPlaces.slice(0, 4);
-  }, [savedPlaces]);
+  const itineraryStops = useMemo((): ItineraryStop[] => {
+    if (generatedItinerary) {
+      return generatedItinerary.stops;
+    }
+    return itineraryPlaces.slice(0, 5).map((place, index) => ({
+      place,
+      order: index + 1,
+      startTime: ["10:00 AM", "12:00 PM", "2:00 PM", "4:30 PM", "6:00 PM"][index] ?? "TBD",
+      endTime: ["11:30 AM", "1:30 PM", "3:30 PM", "6:00 PM", "7:30 PM"][index] ?? "TBD",
+    }));
+  }, [itineraryPlaces, generatedItinerary]);
 
   const totalEstimatedCost = useMemo(() => {
-    return itineraryStops.reduce((total, place) => {
+    return itineraryStops.reduce((total, stop) => {
       return (
         total +
-        getAveragePrice(place.estimatedCost.min, place.estimatedCost.max)
+        getAveragePrice(stop.place.estimatedCost.min, stop.place.estimatedCost.max)
       );
     }, 0);
   }, [itineraryStops]);
 
-  const tripDurationHours = useMemo(() => {
-    return calculateTripDuration(itineraryStops);
-  }, [itineraryStops]);
+  const totalDurationMins = useMemo(() => {
+    return generatedItinerary?.totalDurationMins ?? itineraryStops.length * 90;
+  }, [generatedItinerary, itineraryStops]);
 
-  const formatDuration = (hours: number): string => {
-    if (hours === 0) return "0 hrs";
-    const wholeHours = Math.floor(hours);
-    const minutes = Math.round((hours - wholeHours) * 60);
+  const handleGenerateRoute = useCallback(async () => {
+    if (itineraryPlaces.length === 0) return;
 
-    if (minutes === 0) {
-      return `${wholeHours} hr${wholeHours !== 1 ? "s" : ""}`;
+    setIsGenerating(true);
+    try {
+      const result = await generateItineraryWithGemini(
+        itineraryPlaces.slice(0, 5),
+        "10:00 AM"
+      );
+      setGeneratedItinerary(result);
+    } catch (error) {
+      console.error("Failed to generate itinerary:", error);
+    } finally {
+      setIsGenerating(false);
     }
-
-    return `${wholeHours}h ${minutes}m`;
-  };
-
-  // Calculate arrival times based on start time
-  const arrivalTimes = useMemo(() => {
-    return calculateArrivalTimes(itineraryStops, startHours, startMinutes);
-  }, [itineraryStops, startHours, startMinutes]);
-
-  // Extract route coordinates for polyline
-  const routeCoordinates = useMemo(() => {
-    return itineraryStops
-      .filter((place) => place.location?.lat && place.location?.lng)
-      .map((place) => ({
-        latitude: place.location.lat,
-        longitude: place.location.lng,
-      }));
-  }, [itineraryStops]);
-
-  // Calculate map bounds to fit all stops
-  const mapInitialRegion = useMemo(() => {
-    if (routeCoordinates.length === 0) {
-      return {
-        latitude: 40.7128,
-        longitude: -74.006,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      };
-    }
-
-    const lats = routeCoordinates.map((c) => c.latitude);
-    const lngs = routeCoordinates.map((c) => c.longitude);
-
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLng = Math.min(...lngs);
-    const maxLng = Math.max(...lngs);
-
-    const centerLat = (minLat + maxLat) / 2;
-    const centerLng = (minLng + maxLng) / 2;
-
-    return {
-      latitude: centerLat,
-      longitude: centerLng,
-      latitudeDelta: (maxLat - minLat) * 1.5,
-      longitudeDelta: (maxLng - minLng) * 1.5,
-    };
-  }, [routeCoordinates]);
-
-  // Quick time buttons
-  const quickTimes = [
-    { label: "Now", hours: new Date().getHours(), minutes: new Date().getMinutes() },
-    { label: "9:00 AM", hours: 9, minutes: 0 },
-    { label: "10:00 AM", hours: 10, minutes: 0 },
-    { label: "11:00 AM", hours: 11, minutes: 0 },
-    { label: "12:00 PM", hours: 12, minutes: 0 },
-    { label: "1:00 PM", hours: 13, minutes: 0 },
-    { label: "2:00 PM", hours: 14, minutes: 0 },
-  ];
-
-  const handleQuickTime = (hours: number, minutes: number) => {
-    setStartHours(hours);
-    setStartMinutes(minutes);
-  };
-
-  const handleCustomTime = () => {
-    const parsed = parseTimeString(customTimeInput);
-    if (parsed) {
-      setStartHours(parsed.hours);
-      setStartMinutes(parsed.minutes);
-      setShowCustomTimeModal(false);
-    }
-  };
+  }, [itineraryPlaces]);
 
   if (itineraryStops.length === 0) {
     return (
@@ -438,9 +383,7 @@ export default function ItineraryScreen() {
               {itineraryStops.length} stops
             </Text>
             <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>
-              {formatDuration(tripDurationHours)}
-            </Text>
+            <Text style={styles.summaryMetaText}>~{Math.round(totalDurationMins / 60)} hrs</Text>
             <Text style={styles.summaryMetaDot}>•</Text>
             <Text style={styles.summaryMetaText}>
               Est. ${totalEstimatedCost}
@@ -487,18 +430,18 @@ export default function ItineraryScreen() {
       <View style={styles.timelineWrapper}>
         <View style={styles.timelineRail} />
 
-        {itineraryStops.map((place, index) => {
+        {itineraryStops.map((stop) => {
           const priceLabel = formatPrice(
-            place.estimatedCost.min,
-            place.estimatedCost.max,
+            stop.place.estimatedCost.min,
+            stop.place.estimatedCost.max,
           );
           const arrivalTime = arrivalTimes[index] || "TBD";
 
           return (
-            <View key={place.id} style={styles.stopRow}>
+            <View key={stop.place.id} style={styles.stopRow}>
               <View style={styles.markerColumn}>
                 <View style={styles.timelineMarker}>
-                  <Text style={styles.timelineMarkerText}>{index + 1}</Text>
+                  <Text style={styles.timelineMarkerText}>{stop.order}</Text>
                 </View>
               </View>
 
@@ -507,13 +450,13 @@ export default function ItineraryScreen() {
                 onPress={() =>
                   router.push({
                     pathname: "/itinerary/[placeId]",
-                    params: { placeId: place.id },
+                    params: { placeId: stop.place.id },
                   })
                 }
               >
-                {place.links?.imageUrl ? (
+                {stop.place.links?.imageUrl ? (
                   <Image
-                    source={{ uri: place.links.imageUrl }}
+                    source={{ uri: stop.place.links.imageUrl }}
                     style={styles.stopImage}
                   />
                 ) : (
@@ -527,7 +470,7 @@ export default function ItineraryScreen() {
                     <View style={styles.timeRow}>
                       <IconSymbol size={14} name="clock" color="#8B8B8B" />
                       <Text style={styles.timeText}>
-                        {arrivalTime}
+                        {stop.startTime}
                       </Text>
                     </View>
 
@@ -535,11 +478,11 @@ export default function ItineraryScreen() {
                   </View>
 
                   <Text style={styles.stopTitle} numberOfLines={2}>
-                    {place.name}
+                    {stop.place.name}
                   </Text>
 
                   <Text style={styles.stopAddress} numberOfLines={1}>
-                    {formatLocation(place.location.city, place.location.state)}
+                    {formatLocation(stop.place.location.city, stop.place.location.state)}
                   </Text>
 
                   <View style={styles.chipRow}>
@@ -563,10 +506,10 @@ export default function ItineraryScreen() {
                       </Text>
                     </View>
 
-                    {!!place.category && (
+                    {!!stop.place.category && (
                       <View style={styles.categoryChip}>
                         <Text style={styles.categoryChipText}>
-                          {place.category}
+                          {stop.place.category}
                         </Text>
                       </View>
                     )}
@@ -638,14 +581,21 @@ export default function ItineraryScreen() {
       </View>
 
       <Pressable
-        style={styles.generateButton}
-        onPress={() => router.navigate("/map")}
+        style={[styles.generateButton, isGenerating && styles.generateButtonDisabled]}
+        onPress={handleGenerateRoute}
+        disabled={isGenerating}
       >
-        <Text style={styles.generateButtonText}>Generate Route</Text>
+        {isGenerating ? (
+          <ActivityIndicator color="#FFFFFF" />
+        ) : (
+          <Text style={styles.generateButtonText}>
+            {generatedItinerary ? "Regenerate Route" : "Generate Route"}
+          </Text>
+        )}
       </Pressable>
 
       <Text style={styles.footerHint}>
-        We'll optimize the order and timings for you
+        {generatedItinerary?.summary || "We’ll optimize the order and timings for you"}
       </Text>
 
       {/* Custom Time Modal */}
@@ -1004,6 +954,19 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#102C26",
   },
+  stopActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  deleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,0,0,0.6)",
+  },
   stopTitle: {
     fontSize: 16,
     fontWeight: "800",
@@ -1113,6 +1076,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
+  },
+  generateButtonDisabled: {
+    opacity: 0.7,
   },
   generateButtonText: {
     fontSize: 18,
