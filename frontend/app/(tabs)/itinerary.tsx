@@ -965,7 +965,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 22,
   },
-  },
   mapPlaceholder: {
     height: 140,
     backgroundColor: "#D9ECE7",
