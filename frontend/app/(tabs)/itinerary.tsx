@@ -1,9 +1,7 @@
 import { IconSymbol } from "@/components/ui/icon-symbol";
-import { Ionicons } from "@expo/vector-icons";
-import {
-  useSavedPlaces,
-  type GeneratedItineraryStop,
-} from "@/context/SavedPlacesContext";
+import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import { buildItineraryViewModel } from "@/services/itineraryEngine";
+import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import {
@@ -50,7 +48,7 @@ function formatHours(minutes: number) {
   return `${hours}h ${remainder}m`;
 }
 
-function TravelRow({ stop }: { stop: GeneratedItineraryStop }) {
+function TravelRow({ stop }: { stop: ItineraryStopResult }) {
   if (stop.order === 1 || stop.travelTimeMinsFromPrevious <= 0) {
     return null;
   }
@@ -274,26 +272,10 @@ export default function ItineraryScreen() {
     removeFromItinerary,
   } = useSavedPlaces();
 
-  const stopsWithPlaces = useMemo(() => {
-    if (!generatedItinerary) {
-      return [];
-    }
-
-    return generatedItinerary.stops
-      .map((stop) => ({
-        stop,
-        place:
-          itineraryPlaces.find((place) => place.id === stop.placeId) ?? null,
-      }))
-      .filter(
-        (
-          item,
-        ): item is {
-          stop: GeneratedItineraryStop;
-          place: (typeof itineraryPlaces)[number];
-        } => item.place !== null,
-      );
-  }, [generatedItinerary, itineraryPlaces]);
+  const itineraryView = useMemo(
+    () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
+    [generatedItinerary, itineraryPlaces],
+  );
 
   if (itineraryPlaces.length < 5) {
     const placesNeeded = 5 - itineraryPlaces.length;
@@ -406,15 +388,17 @@ export default function ItineraryScreen() {
         </View>
       </View>
 
-      <View style={styles.timelineWrapper}>
-        <View style={styles.timelineRail} />
+        <View style={styles.timelineWrapper}>
+          <View style={styles.timelineRail} />
 
-        {stopsWithPlaces.map(({ stop, place }) => {
-          const priceLabel = formatPrice(
-            place.estimatedCost?.min ?? 0,
-            place.estimatedCost?.max ?? 0,
+          {/* THIS IS WHERE THE ITINERARY GETS RENDERED USING MAP FUNC */}
+          {itineraryView.map(({ stop, place }) => {
+            const priceLabel = formatPrice(
+              place.estimatedCost?.min ?? 0,
+              place.estimatedCost?.max ?? 0,
           );
 
+          // THIS IS HOW THE CARD GETS RENDERED: POSSIBLY EXPORT AS COMPONENT?
           return (
             <View key={place.id}>
               <TravelRow stop={stop} />
