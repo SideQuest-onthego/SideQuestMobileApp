@@ -195,15 +195,17 @@ export default function ItineraryScreen() {
         </View>
       </View>
 
-      <View style={styles.timelineWrapper}>
-        <View style={styles.timelineRail} />
+        <View style={styles.timelineWrapper}>
+          <View style={styles.timelineRail} />
 
-        {itineraryView.map(({ stop, place }) => {
-          const priceLabel = formatPrice(
-            place.estimatedCost?.min ?? 0,
-            place.estimatedCost?.max ?? 0,
+          {/* THIS IS WHERE THE ITINERARY GETS RENDERED USING MAP FUNC */}
+          {itineraryView.map(({ stop, place }) => {
+            const priceLabel = formatPrice(
+              place.estimatedCost?.min ?? 0,
+              place.estimatedCost?.max ?? 0,
           );
 
+          // THIS IS HOW THE CARD GETS RENDERED: POSSIBLY EXPORT AS COMPONENT?
           return (
             <View key={place.id}>
               <TravelRow stop={stop} />
