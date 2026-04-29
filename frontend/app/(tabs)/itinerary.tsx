@@ -4,14 +4,16 @@ import { buildItineraryViewModel } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
+  Modal,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 
@@ -48,6 +50,30 @@ function formatHours(minutes: number) {
   }
 
   return `${hours}h ${remainder}m`;
+}
+
+// Format time object to string (HH:MM AM/PM)
+function formatTimeString(hours: number, minutes: number): string {
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+// Parse time string to hours and minutes
+function parseTimeString(
+  timeStr: string,
+): { hours: number; minutes: number } | null {
+  const match = timeStr.match(/(\d{1,2}):(\d{2})\s(AM|PM)/i);
+  if (!match) return null;
+
+  let hours = parseInt(match[1]);
+  const minutes = parseInt(match[2]);
+  const period = match[3].toUpperCase();
+
+  if (period === "PM" && hours !== 12) hours += 12;
+  if (period === "AM" && hours === 12) hours = 0;
+
+  return { hours, minutes };
 }
 
 function TravelRow({ stop }: { stop: ItineraryStopResult }) {
@@ -124,98 +150,6 @@ function calculateTripDuration(stops: any[]): number {
   return timeAtLocations + travelTime;
 }
 
-// Format time object to string (HH:MM AM/PM)
-function formatTimeString(hours: number, minutes: number): string {
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
-}
-
-// Parse time string to hours and minutes
-function parseTimeString(
-  timeStr: string,
-): { hours: number; minutes: number } | null {
-  const match = timeStr.match(/(\d{1,2}):(\d{2})\s(AM|PM)/i);
-  if (!match) return null;
-
-  let hours = parseInt(match[1]);
-  const minutes = parseInt(match[2]);
-  const period = match[3].toUpperCase();
-
-  if (period === "PM" && hours !== 12) hours += 12;
-  if (period === "AM" && hours === 12) hours = 0;
-
-  return { hours, minutes };
-}
-
-// MTA Subway station database for major NYC locations
-const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } =
-  {
-    "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
-    "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
-    "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
-    "met museum": { station: "86th Street", lines: ["4", "5"] },
-    "brooklyn bridge": {
-      station: "Brooklyn Bridge-City Hall",
-      lines: ["4", "5", "6"],
-    },
-    "times square": {
-      station: "Times Square-42nd Street",
-      lines: ["1", "2", "3", "7", "A", "C", "E"],
-    },
-    "central park": {
-      station: "59th Street-Columbus Circle",
-      lines: ["1", "A", "B", "C", "D"],
-    },
-    "empire state building": {
-      station: "34th Street-Herald Square",
-      lines: ["B", "D", "F", "M", "N", "Q", "R", "W"],
-    },
-    "grand central": {
-      station: "Grand Central-42nd Street",
-      lines: ["4", "5", "6", "7"],
-    },
-  };
-
-// Get nearest MTA station for a place
-function getNearestMTAStation(
-  place: any,
-): { station: string; lines: string[] } | null {
-  const placeName = place.name?.toLowerCase() || "";
-
-  // Check for direct match
-  for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
-    if (placeName.includes(key)) {
-      return value;
-    }
-  }
-
-  // Default fallback (could be enhanced with real geocoding)
-  return null;
-}
-
-// Get transit directions between two stops
-function getTransitDirections(fromPlace: any, toPlace: any): string {
-  const fromStation = getNearestMTAStation(fromPlace);
-  const toStation = getNearestMTAStation(toPlace);
-
-  if (!fromStation || !toStation) {
-    return "Check MTA website for directions";
-  }
-
-  // Find common lines or suggest transfer
-  const commonLines = fromStation.lines.filter((line) =>
-    toStation.lines.includes(line),
-  );
-
-  if (commonLines.length > 0) {
-    return `Take ${commonLines.join("/")} train from ${fromStation.station} to ${toStation.station}`;
-  } else {
-    // Suggest a transfer (simplified logic)
-    return `From ${fromStation.station} (${fromStation.lines.join("/")}), transfer to ${toStation.station} (${toStation.lines.join("/")})`;
-  }
-}
-
 // Calculate arrival times for all stops
 function calculateArrivalTimes(
   stops: any[],
@@ -265,6 +199,369 @@ function calculateArrivalTimes(
   return arrivalTimes;
 }
 
+// MTA Subway station database for major NYC locations
+const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } =
+  {
+    "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
+    "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
+    "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
+    "met museum": { station: "86th Street", lines: ["4", "5"] },
+    "brooklyn bridge": {
+      station: "Brooklyn Bridge-City Hall",
+      lines: ["4", "5", "6"],
+    },
+    "times square": {
+      station: "Times Square-42nd Street",
+      lines: ["1", "2", "3", "7", "A", "C", "E"],
+    },
+    "central park": {
+      station: "59th Street-Columbus Circle",
+      lines: ["1", "A", "B", "C", "D"],
+    },
+    "empire state building": {
+      station: "34th Street-Herald Square",
+      lines: ["B", "D", "F", "M", "N", "Q", "R", "W"],
+    },
+    "grand central": {
+      station: "Grand Central-42nd Street",
+      lines: ["4", "5", "6", "7"],
+    },
+  };
+
+// Get nearest MTA station for a place
+function getNearestMTAStation(
+  place: any,
+): { station: string; lines: string[] } | null {
+  const placeName = place.name?.toLowerCase() || "";
+
+  // Check for direct match
+  for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
+    if (placeName.includes(key)) {
+      return value;
+    }
+  }
+
+  // Default fallback
+  return null;
+}
+
+// Get transit directions between two stops
+function getTransitDirections(fromPlace: any, toPlace: any): string {
+  const fromStation = getNearestMTAStation(fromPlace);
+  const toStation = getNearestMTAStation(toPlace);
+
+  if (!fromStation || !toStation) {
+    return "Check MTA website for directions";
+  }
+
+  // Find common lines or suggest transfer
+  const commonLines = fromStation.lines.filter((line) =>
+    toStation.lines.includes(line),
+  );
+
+  if (commonLines.length > 0) {
+    return `Take ${commonLines.join("/")} train from ${fromStation.station} to ${toStation.station}`;
+  } else {
+    // Suggest a transfer (simplified logic)
+    return `From ${fromStation.station} (${fromStation.lines.join("/")}), transfer to ${toStation.station} (${toStation.lines.join("/")})`;
+  }
+}
+
+// Transit options generator
+function getTransitOptions(
+  fromPlace: any,
+  toPlace: any,
+  distanceMiles: number,
+  travelMinutes: number,
+) {
+  const trainDirections = getTransitDirections(fromPlace, toPlace);
+  
+  return {
+    train: {
+      mode: "train",
+      icon: "tram.fill",
+      title: "Subway",
+      time: Math.ceil(travelMinutes * 0.8), // 20% faster with subway
+      description: trainDirections,
+    },
+    bus: {
+      mode: "bus",
+      icon: "bus.fill",
+      title: "Bus",
+      time: Math.ceil(travelMinutes * 1.1), // 10% slower
+      description: `Take local bus from ${fromPlace.name} to ${toPlace.name}`,
+    },
+    walk: {
+      mode: "walk",
+      icon: "figure.walk",
+      title: "Walk",
+      time: Math.ceil((distanceMiles * 20) / 1), // ~20 min per mile
+      description: `Walk ${distanceMiles.toFixed(1)} miles (scenic route)`,
+    },
+  };
+}
+
+// Expandable Transit Directions Component
+function TransitDirections({
+  fromPlace,
+  toPlace,
+  distanceMiles,
+  travelMinutes,
+  isExpanded,
+  onToggle,
+}: {
+  fromPlace: any;
+  toPlace: any;
+  distanceMiles: number;
+  travelMinutes: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const options = getTransitOptions(fromPlace, toPlace, distanceMiles, travelMinutes);
+  const [selectedMode, setSelectedMode] = useState<"train" | "bus" | "walk">("train");
+
+  return (
+    <View style={styles.transitContainer}>
+      <Pressable style={styles.transitHeader} onPress={onToggle}>
+        <View style={styles.transitHeaderLeft}>
+          <IconSymbol size={18} name="tram.fill" color="#102C26" />
+          <Text style={styles.transitHeaderText}>Transit Options</Text>
+        </View>
+        <Ionicons
+          name={isExpanded ? "chevron-up" : "chevron-down"}
+          size={20}
+          color="#102C26"
+        />
+      </Pressable>
+
+      {isExpanded && (
+        <View style={styles.transitContent}>
+          <View style={styles.transitModes}>
+            {(Object.keys(options) as Array<"train" | "bus" | "walk">).map(
+              (mode) => {
+                const option = options[mode];
+                return (
+                  <Pressable
+                    key={mode}
+                    style={[
+                      styles.transitModeButton,
+                      selectedMode === mode && styles.transitModeButtonActive,
+                    ]}
+                    onPress={() => setSelectedMode(mode)}
+                  >
+                    <IconSymbol
+                      size={16}
+                      name={option.icon as any}
+                      color={selectedMode === mode ? "#FFFFFF" : "#34524C"}
+                    />
+                    <Text
+                      style={[
+                        styles.transitModeText,
+                        selectedMode === mode && styles.transitModeTextActive,
+                      ]}
+                    >
+                      {option.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.transitModeTime,
+                        selectedMode === mode && styles.transitModeTimeActive,
+                      ]}
+                    >
+                      {option.time}m
+                    </Text>
+                  </Pressable>
+                );
+              }
+            )}
+          </View>
+
+          <View style={styles.transitDetails}>
+            <View style={styles.transitDetailsRow}>
+              <View style={styles.transitPin}>
+                <Text style={styles.transitPinText}>A</Text>
+              </View>
+              <View style={styles.transitDetailsContent}>
+                <Text style={styles.transitDetailsLabel}>From</Text>
+                <Text style={styles.transitDetailsPlace}>{fromPlace.name}</Text>
+              </View>
+            </View>
+
+            <View style={styles.transitArrowContainer}>
+              <View style={styles.transitArrowLine} />
+              <Text style={styles.transitArrowIcon}>↓</Text>
+            </View>
+
+            <View style={styles.transitDetailsRow}>
+              <View style={styles.transitPin}>
+                <Text style={styles.transitPinText}>B</Text>
+              </View>
+              <View style={styles.transitDetailsContent}>
+                <Text style={styles.transitDetailsLabel}>To</Text>
+                <Text style={styles.transitDetailsPlace}>{toPlace.name}</Text>
+              </View>
+            </View>
+
+            <View style={styles.transitDirectionsBox}>
+              <View style={styles.transitDirectionsIcon}>
+                <IconSymbol
+                  size={16}
+                  name={options[selectedMode].icon as any}
+                  color="#102C26"
+                />
+              </View>
+              <Text style={styles.transitDirectionsText}>
+                {options[selectedMode].description}
+              </Text>
+            </View>
+
+            <View style={styles.transitSummary}>
+              <View style={styles.transitSummaryItem}>
+                <Text style={styles.transitSummaryLabel}>Duration</Text>
+                <Text style={styles.transitSummaryValue}>
+                  {options[selectedMode].time} min
+                </Text>
+              </View>
+              <View style={styles.transitSummaryDivider} />
+              <View style={styles.transitSummaryItem}>
+                <Text style={styles.transitSummaryLabel}>Distance</Text>
+                <Text style={styles.transitSummaryValue}>
+                  {distanceMiles.toFixed(1)} mi
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Start Time Picker Component
+function StartTimeCard({
+  startTime,
+  onTimeChange,
+}: {
+  startTime: { hours: number; minutes: number };
+  onTimeChange: (hours: number, minutes: number) => void;
+}) {
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customTime, setCustomTime] = useState(
+    formatTimeString(startTime.hours, startTime.minutes),
+  );
+
+  const quickTimes = [
+    { label: "8 AM", hours: 8, minutes: 0 },
+    { label: "9 AM", hours: 9, minutes: 0 },
+    { label: "10 AM", hours: 10, minutes: 0 },
+    { label: "12 PM", hours: 12, minutes: 0 },
+    { label: "2 PM", hours: 14, minutes: 0 },
+    { label: "4 PM", hours: 16, minutes: 0 },
+  ];
+
+  const currentTimeString = formatTimeString(
+    startTime.hours,
+    startTime.minutes,
+  );
+  const isCurrentTime = (hours: number, minutes: number) =>
+    startTime.hours === hours && startTime.minutes === minutes;
+
+  const handleCustomTime = () => {
+    const parsed = parseTimeString(customTime);
+    if (parsed) {
+      onTimeChange(parsed.hours, parsed.minutes);
+      setShowCustomModal(false);
+    }
+  };
+
+  return (
+    <>
+      <View style={styles.startTimeCard}>
+        <View style={styles.startTimeHeader}>
+          <View>
+            <Text style={styles.startTimeLabel}>Start Time</Text>
+            <Text style={styles.startTimeValue}>{currentTimeString}</Text>
+          </View>
+          <IconSymbol size={24} name="clock" color="#102C26" />
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.quickTimesScroll}
+          contentContainerStyle={styles.quickTimesContent}
+        >
+          {quickTimes.map((time) => (
+            <Pressable
+              key={`${time.hours}-${time.minutes}`}
+              style={[
+                styles.quickTimeButton,
+                isCurrentTime(time.hours, time.minutes) &&
+                  styles.quickTimeButtonActive,
+              ]}
+              onPress={() => onTimeChange(time.hours, time.minutes)}
+            >
+              <Text
+                style={[
+                  styles.quickTimeButtonText,
+                  isCurrentTime(time.hours, time.minutes) &&
+                    styles.quickTimeButtonTextActive,
+                ]}
+              >
+                {time.label}
+              </Text>
+            </Pressable>
+          ))}
+
+          <Pressable
+            style={styles.customTimeButton}
+            onPress={() => setShowCustomModal(true)}
+          >
+            <IconSymbol size={14} name="plus" color="#102C26" />
+            <Text style={styles.customTimeButtonText}>Custom</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      <Modal
+        visible={showCustomModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCustomModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Set Custom Time</Text>
+
+            <TextInput
+              style={styles.timeInput}
+              placeholder="12:00 PM"
+              placeholderTextColor="#A0A0A0"
+              value={customTime}
+              onChangeText={setCustomTime}
+            />
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={styles.modalCancel}
+                onPress={() => setShowCustomModal(false)}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.modalConfirm}
+                onPress={handleCustomTime}
+              >
+                <Text style={styles.modalConfirmText}>Set Time</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
+}
+
 export default function ItineraryScreen() {
   const router = useRouter();
   const mapRef = useRef<MapView>(null);
@@ -275,9 +572,26 @@ export default function ItineraryScreen() {
     removeFromItinerary,
   } = useSavedPlaces();
 
+  // State for start time and expanded transit
+  const [startTime, setStartTime] = useState({ hours: 9, minutes: 0 });
+  const [expandedTransitStop, setExpandedTransitStop] = useState<number | null>(
+    null,
+  );
+
   const itineraryView = useMemo(
     () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
     [generatedItinerary, itineraryPlaces],
+  );
+
+  // Calculate arrival times based on start time
+  const arrivalTimes = useMemo(
+    () =>
+      calculateArrivalTimes(
+        itineraryPlaces,
+        startTime.hours,
+        startTime.minutes,
+      ),
+    [itineraryPlaces, startTime],
   );
 
   // Calculate map region for miniature preview
@@ -380,6 +694,14 @@ export default function ItineraryScreen() {
         </Text>
       </View>
 
+      {/* START TIME PICKER */}
+      <StartTimeCard
+        startTime={startTime}
+        onTimeChange={(hours, minutes) =>
+          setStartTime({ hours, minutes })
+        }
+      />
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryIconBox}>
           <IconSymbol size={28} name="map" color="#102C26" />
@@ -408,7 +730,10 @@ export default function ItineraryScreen() {
           </View>
 
           <Text style={styles.summaryRange}>
-            {generatedItinerary?.startTime} - {generatedItinerary?.endTime}
+            {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
+            {arrivalTimes.length > 0
+              ? arrivalTimes[arrivalTimes.length - 1]
+              : "End time"}
           </Text>
         </View>
       </View>
@@ -436,17 +761,36 @@ export default function ItineraryScreen() {
       <View style={styles.timelineWrapper}>
         <View style={styles.timelineRail} />
 
-        {/* THIS IS WHERE THE ITINERARY GETS RENDERED USING MAP FUNC */}
-        {itineraryView.map(({ stop, place }) => {
+        {itineraryView.map(({ stop, place }, index) => {
           const priceLabel = formatPrice(
             place.estimatedCost?.min ?? 0,
             place.estimatedCost?.max ?? 0,
           );
 
-          // THIS IS HOW THE CARD GETS RENDERED: POSSIBLY EXPORT AS COMPONENT?
+          const nextPlace =
+            index < itineraryPlaces.length - 1
+              ? itineraryPlaces[index + 1]
+              : null;
+
           return (
             <View key={place.id}>
               <TravelRow stop={stop} />
+
+              {/* TRANSIT DIRECTIONS - Under Train Direction */}
+              {nextPlace && (
+                <TransitDirections
+                  fromPlace={place}
+                  toPlace={nextPlace}
+                  distanceMiles={stop.travelDistanceMilesFromPrevious || 1}
+                  travelMinutes={stop.travelTimeMinsFromPrevious || 30}
+                  isExpanded={expandedTransitStop === index}
+                  onToggle={() =>
+                    setExpandedTransitStop(
+                      expandedTransitStop === index ? null : index,
+                    )
+                  }
+                />
+              )}
 
               <View style={styles.stopRow}>
                 <View style={styles.markerColumn}>
@@ -479,7 +823,8 @@ export default function ItineraryScreen() {
                     <View style={styles.stopTopRow}>
                       <View>
                         <Text style={styles.timeText}>
-                          {stop.startTime} - {stop.endTime}
+                          {arrivalTimes[index] || stop.startTime} -{" "}
+                          {stop.endTime}
                         </Text>
                         <Text style={styles.durationText}>
                           {stop.durationMins} min stop
@@ -654,6 +999,9 @@ const styles = StyleSheet.create({
     marginHorizontal: -16,
     paddingHorizontal: 16,
   },
+  quickTimesContent: {
+    paddingVertical: 8,
+  },
   quickTimeButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -683,6 +1031,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#102C26",
     marginRight: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   customTimeButtonText: {
     fontSize: 13,
@@ -785,62 +1136,185 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#102C26",
   },
-  transitCard: {
+
+  // Transit Directions Styles
+  transitContainer: {
+    marginHorizontal: 30,
+    marginBottom: 14,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#102C26",
-    padding: 16,
-    marginBottom: 24,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#D0E8E2",
+    overflow: "hidden",
   },
   transitHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 10,
-    marginBottom: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  transitTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+  transitHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  transitHeaderText: {
+    fontSize: 14,
+    fontWeight: "700",
     color: "#102C26",
   },
-  transitItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+  transitContent: {
     backgroundColor: "#F9FBFD",
-    borderRadius: 12,
-    marginBottom: 10,
+    borderTopWidth: 1.5,
+    borderTopColor: "#D0E8E2",
+    paddingHorizontal: 14,
+    paddingVertical: 14,
   },
-  transitItemNumber: {
+  transitModes: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  transitModeButton: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 6,
-    minWidth: 60,
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1.5,
+    borderColor: "#D0E8E2",
   },
-  transitItemNumberText: {
+  transitModeButtonActive: {
+    backgroundColor: "#34524C",
+    borderColor: "#34524C",
+  },
+  transitModeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#34524C",
+  },
+  transitModeTextActive: {
+    color: "#FFFFFF",
+  },
+  transitModeTime: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#5A7069",
+  },
+  transitModeTimeActive: {
+    color: "#FFFFFF",
+  },
+  transitDetails: {
+    gap: 12,
+  },
+  transitDetailsRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  transitPin: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#102C26",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  transitPinText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  transitDetailsContent: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  transitDetailsLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#5A7069",
+  },
+  transitDetailsPlace: {
     fontSize: 13,
     fontWeight: "700",
     color: "#102C26",
-    backgroundColor: "#CFEFE9",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    marginTop: 2,
   },
-  transitArrow: {
-    width: 20,
-    height: 2,
+  transitArrowContainer: {
+    alignItems: "center",
+    gap: 6,
+  },
+  transitArrowLine: {
+    width: 2,
+    height: 16,
     backgroundColor: "#102C26",
   },
-  transitDirectionText: {
+  transitArrowIcon: {
+    fontSize: 16,
+    color: "#102C26",
+    fontWeight: "800",
+  },
+  transitDirectionsBox: {
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#D0E8E2",
+    alignItems: "flex-start",
+  },
+  transitDirectionsIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: "#CFEFE9",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  transitDirectionsText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: "#34524C",
-    lineHeight: 20,
+    lineHeight: 18,
   },
+  transitSummary: {
+    flexDirection: "row",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#E8F0EC",
+  },
+  transitSummaryItem: {
+    flex: 1,
+    alignItems: "center",
+  },
+  transitSummaryLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#5A7069",
+  },
+  transitSummaryValue: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#102C26",
+    marginTop: 4,
+  },
+  transitSummaryDivider: {
+    width: 1,
+    backgroundColor: "#D0E8E2",
+  },
+
   stopsHeader: {
     marginBottom: 14,
   },
