@@ -2,9 +2,9 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
 import { buildItineraryViewModel } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
-import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import React, { useMemo, useRef } from "react";
 import {
   Image,
   Pressable,
@@ -13,6 +13,7 @@ import {
   Text,
   View,
 } from "react-native";
+import MapView, { Marker, Polyline } from "react-native-maps";
 
 function formatPrice(min: number, max: number) {
   if (min === 0 && max === 0) {
@@ -266,6 +267,7 @@ function calculateArrivalTimes(
 
 export default function ItineraryScreen() {
   const router = useRouter();
+  const mapRef = useRef<MapView>(null);
   const {
     itineraryPlaces,
     generatedItinerary,
@@ -277,6 +279,47 @@ export default function ItineraryScreen() {
     () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
     [generatedItinerary, itineraryPlaces],
   );
+
+  // Calculate map region for miniature preview
+  const mapRegion = useMemo(() => {
+    if (itineraryPlaces.length === 0) {
+      return {
+        latitude: 40.7128,
+        longitude: -74.006,
+        latitudeDelta: 0.5,
+        longitudeDelta: 0.5,
+      };
+    }
+
+    // Filter places with valid coordinates
+    const validPlaces = itineraryPlaces.filter(
+      (p) => p.location?.lat && p.location?.lng,
+    );
+
+    if (validPlaces.length === 0) {
+      return {
+        latitude: 40.7128,
+        longitude: -74.006,
+        latitudeDelta: 0.5,
+        longitudeDelta: 0.5,
+      };
+    }
+
+    const lats = validPlaces.map((p) => p.location.lat);
+    const lons = validPlaces.map((p) => p.location.lng);
+
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+
+    return {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLon + maxLon) / 2,
+      latitudeDelta: Math.max((maxLat - minLat) * 1.3, 0.1),
+      longitudeDelta: Math.max((maxLon - minLon) * 1.3, 0.1),
+    };
+  }, [itineraryPlaces]);
 
   if (itineraryPlaces.length < 5) {
     const placesNeeded = 5 - itineraryPlaces.length;
@@ -369,6 +412,7 @@ export default function ItineraryScreen() {
           </Text>
         </View>
       </View>
+
       <View style={styles.actionRow}>
         <Pressable style={styles.generateButton} onPress={generateItinerary}>
           <Text style={styles.generateButtonText}>Regenerate itinerary</Text>
@@ -389,14 +433,14 @@ export default function ItineraryScreen() {
         </View>
       </View>
 
-        <View style={styles.timelineWrapper}>
-          <View style={styles.timelineRail} />
+      <View style={styles.timelineWrapper}>
+        <View style={styles.timelineRail} />
 
-          {/* THIS IS WHERE THE ITINERARY GETS RENDERED USING MAP FUNC */}
-          {itineraryView.map(({ stop, place }) => {
-            const priceLabel = formatPrice(
-              place.estimatedCost?.min ?? 0,
-              place.estimatedCost?.max ?? 0,
+        {/* THIS IS WHERE THE ITINERARY GETS RENDERED USING MAP FUNC */}
+        {itineraryView.map(({ stop, place }) => {
+          const priceLabel = formatPrice(
+            place.estimatedCost?.min ?? 0,
+            place.estimatedCost?.max ?? 0,
           );
 
           // THIS IS HOW THE CARD GETS RENDERED: POSSIBLY EXPORT AS COMPONENT?
@@ -507,10 +551,44 @@ export default function ItineraryScreen() {
       </View>
 
       <View style={styles.mapCard}>
-        <View style={styles.mapPlaceholder}>
-          <IconSymbol size={28} name="map" color="#46655F" />
-          <Text style={styles.mapPlaceholderText}>Map preview coming soon</Text>
-        </View>
+        <MapView
+          style={styles.mapPreview}
+          initialRegion={mapRegion}
+          scrollEnabled={false}
+          zoomEnabled={false}
+          pitchEnabled={false}
+          rotateEnabled={false}
+        >
+          {/* Polyline connecting all stops */}
+          {itineraryPlaces.length > 1 && (
+            <Polyline
+              coordinates={itineraryPlaces
+                .filter((p) => p.location?.lat && p.location?.lng)
+                .map((place) => ({
+                  latitude: place.location.lat,
+                  longitude: place.location.lng,
+                }))}
+              strokeColor="#102C26"
+              strokeWidth={3}
+            />
+          )}
+
+          {/* Markers for each stop */}
+          {itineraryView.map(({ stop, place }) => (
+            <Marker
+              key={place.id}
+              coordinate={{
+                latitude: place.location.lat,
+                longitude: place.location.lng,
+              }}
+              title={place.name}
+            >
+              <View style={styles.largeMarker}>
+                <Text style={styles.largeMarkerText}>{stop.order}</Text>
+              </View>
+            </Marker>
+          ))}
+        </MapView>
 
         <Pressable
           style={styles.routeButton}
@@ -658,6 +736,21 @@ const styles = StyleSheet.create({
   summaryRange: {
     fontSize: 14,
     color: "#34524C",
+  },
+  miniMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#102C26",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+  },
+  miniMarkerText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "800",
   },
   actionRow: {
     flexDirection: "row",
@@ -971,19 +1064,29 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 22,
   },
-  mapPlaceholder: {
-    height: 140,
-    backgroundColor: "#D9ECE7",
+  mapPreview: {
+    height: 200,
+    width: "100%",
+  },
+  largeMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#102C26",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 6,
   },
-  mapPlaceholderText: {
+  largeMarkerText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "700",
-    color: "#46655F",
-    textAlign: "center",
-    paddingHorizontal: 16,
+    fontWeight: "800",
   },
   routeButton: {
     alignSelf: "flex-end",
