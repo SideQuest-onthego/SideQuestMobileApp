@@ -1,9 +1,15 @@
+import AiItineraryModal from "@/components/AiItineraryModal";
 import { IconSymbol } from "@/components/ui/icon-symbol";
+import { Ionicons } from "@expo/vector-icons";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import {
+  generateItineraryWithGemini,
+  type GeneratedItinerary,
+} from "@/services/geminiItinerary";
 import { buildItineraryViewModel } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Image,
   Pressable,
@@ -277,6 +283,29 @@ export default function ItineraryScreen() {
     [generatedItinerary, itineraryPlaces],
   );
 
+  const [aiItinerary, setAiItinerary] = useState<GeneratedItinerary | null>(
+    null,
+  );
+  const [aiModalVisible, setAiModalVisible] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
+
+  const handleGenerateWithAi = useCallback(async () => {
+    if (itineraryPlaces.length < 5 || isGeneratingAi) return;
+
+    setAiModalVisible(true);
+    setIsGeneratingAi(true);
+
+    try {
+      const result = await generateItineraryWithGemini(itineraryPlaces);
+      setAiItinerary(result);
+    } catch (error) {
+      console.error("Failed to generate AI itinerary:", error);
+      setAiItinerary(null);
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  }, [itineraryPlaces, isGeneratingAi]);
+
   if (itineraryPlaces.length < 5) {
     const placesNeeded = 5 - itineraryPlaces.length;
 
@@ -368,6 +397,17 @@ export default function ItineraryScreen() {
           </Text>
         </View>
       </View>
+      <Pressable
+        style={[styles.aiButton, isGeneratingAi && styles.aiButtonDisabled]}
+        onPress={handleGenerateWithAi}
+        disabled={isGeneratingAi}
+      >
+        <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
+        <Text style={styles.aiButtonText}>
+          {isGeneratingAi ? "Generating..." : "Generate route with Gemini"}
+        </Text>
+      </Pressable>
+
       <View style={styles.actionRow}>
         <Pressable style={styles.generateButton} onPress={generateItinerary}>
           <Text style={styles.generateButtonText}>Regenerate itinerary</Text>
@@ -519,6 +559,13 @@ export default function ItineraryScreen() {
           <IconSymbol size={16} name="chevron.right" color="#102C26" />
         </Pressable>
       </View>
+
+      <AiItineraryModal
+        visible={aiModalVisible}
+        itinerary={aiItinerary}
+        isLoading={isGeneratingAi}
+        onClose={() => setAiModalVisible(false)}
+      />
     </ScrollView>
   );
 }
@@ -657,6 +704,26 @@ const styles = StyleSheet.create({
   summaryRange: {
     fontSize: 14,
     color: "#34524C",
+  },
+  aiButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#0B3B33",
+    borderRadius: 18,
+    paddingVertical: 16,
+    marginBottom: 12,
+    borderWidth: 2,
+    borderColor: "#102C26",
+  },
+  aiButtonDisabled: {
+    opacity: 0.6,
+  },
+  aiButtonText: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
   },
   actionRow: {
     flexDirection: "row",
