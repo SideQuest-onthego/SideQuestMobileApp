@@ -33,6 +33,8 @@ const MAPPING = {
    "list.bullet": "list",
    "list.bullet.clipboard": "assignment",
    "car.fill": "directions-car",
+   sparkles: "auto-awesome",
+   xmark: "close",
    map: "map",
 } as IconMapping;
 
