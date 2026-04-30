@@ -107,7 +107,7 @@ export function generateItineraryResult(
       return null;
    }
 
-   const ordered = orderPlacesForItinerary(places);
+   const ordered = orderPlacesForItinerary(places); // orders places based off heuristics
    let clock = 9 * 60;
    let totalActivityMinutes = 0;
    let totalTravelMinutes = 0;
