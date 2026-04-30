@@ -74,19 +74,25 @@ export default function SavedPlaceCard({
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderWidth: 2,
-    borderColor: "#000000",
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
+  flexDirection: "row",
+  backgroundColor: "#FFFFFF",
+  borderWidth: 2,
+  borderColor: "#000000",
+  borderRadius: 12,
+  padding: 16,
+
+  
+  width: "92%",
+  alignSelf: "center",
+
+  marginBottom: 14,
+
+  shadowColor: "#000",
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  elevation: 3,
+},
 
   image: {
     width: 100,

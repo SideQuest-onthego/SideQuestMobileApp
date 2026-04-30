@@ -30,6 +30,11 @@ const MAPPING = {
    "chevron.left.forwardslash.chevron.right": "code",
    "chevron.right": "chevron-right",
    "mappin.circle.fill": "map",
+   "list.bullet": "list",
+   "list.bullet.clipboard": "assignment",
+   "car.fill": "directions-car",
+   sparkles: "auto-awesome",
+   xmark: "close",
    map: "map",
 } as IconMapping;
 

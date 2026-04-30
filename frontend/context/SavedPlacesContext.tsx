@@ -5,8 +5,11 @@ import React, {
   useState,
   useEffect,
   ReactNode,
+  useCallback,
 } from "react";
 import type { ActivityModel } from "../types/sidequest-models";
+import type { ItineraryResult } from "@/types/itinerary";
+import { generateItineraryResult } from "@/services/itineraryEngine";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -15,15 +18,15 @@ import { db } from "../FirebaseConfig";
 type SavedPlacesContextType = {
   savedPlaces: ActivityModel[];
   itineraryPlaces: ActivityModel[];
+  generatedItinerary: ItineraryResult | null;
 
   addPlace: (place: ActivityModel) => void;
   removePlace: (placeId: string) => void;
 
   addToItinerary: (place: ActivityModel) => void;
   removeFromItinerary: (placeId: string) => void;
+  generateItinerary: () => void;
 };
-
-
 
 const SavedPlacesContext = createContext<
   SavedPlacesContextType | undefined
@@ -56,6 +59,8 @@ export function useSavedPlaces() {
 export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [savedPlaces, setSavedPlaces] = useState<ActivityModel[]>([]);
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
+  const [generatedItinerary, setGeneratedItinerary] =
+    useState<ItineraryResult | null>(null);
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   // auth listener
@@ -64,14 +69,12 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
-  useEffect(() => {
-  console.log("Itinerary places updated:", itineraryPlaces);
-}, [itineraryPlaces]);
-
   // load saved places
   useEffect(() => {
     if (!user) {
       setSavedPlaces([]);
+      setItineraryPlaces([]);
+      setGeneratedItinerary(null);
       return;
     }
 
@@ -81,8 +84,11 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
         const snapshot = await getDoc(docRef);
 
         if (snapshot.exists()) {
-          const savedData: ActivityModel[] =
-            snapshot.data().saved || [];
+          const savedData: ActivityModel[] = snapshot.data().saved || [];
+          const itinerarySelection: ActivityModel[] =
+            snapshot.data().itinerarySelection || [];
+          const savedGeneratedItinerary: ItineraryResult | null =
+            snapshot.data().generatedItinerary || null;
 
           setSavedPlaces(
             savedData.map((p) => ({
@@ -90,8 +96,19 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
               id: p.id || crypto.randomUUID(),
             })),
           );
+
+          setItineraryPlaces(
+            itinerarySelection.map((p) => ({
+              ...p,
+              id: p.id || crypto.randomUUID(),
+            })),
+          );
+
+          setGeneratedItinerary(savedGeneratedItinerary);
         } else {
           setSavedPlaces([]);
+          setItineraryPlaces([]);
+          setGeneratedItinerary(null);
         }
       } catch (e) {
         console.error("Failed to fetch saved places:", e);
@@ -102,19 +119,61 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // firestore sync
-  const saveToFirestore = async (places: ActivityModel[]) => {
+  const saveToFirestore = async (
+    places: ActivityModel[],
+    itinerarySelection: ActivityModel[] = itineraryPlaces,
+    itinerary: ItineraryResult | null = generatedItinerary,
+  ) => {
     if (!user) return;
 
     try {
       await setDoc(
         doc(db, "savedPlaces", user.uid),
-        { saved: stripUndefined(places) },
+        {
+          saved: stripUndefined(places),
+          itinerarySelection: stripUndefined(itinerarySelection),
+          generatedItinerary: stripUndefined(itinerary),
+        },
         { merge: true },
       );
     } catch (e) {
       console.error("Failed to update Firestore:", e);
     }
   };
+
+  const persistItineraryState = useCallback(
+    (selection: ActivityModel[], itinerary: ItineraryResult | null) => {
+      void saveToFirestore(savedPlaces, selection, itinerary);
+    },
+    [savedPlaces],
+  );
+
+  useEffect(() => {
+    if (itineraryPlaces.length >= 5 && !generatedItinerary) {
+      const nextGenerated = generateItineraryResult(itineraryPlaces);
+      console.log("Generated itinerary result:", nextGenerated);
+      setGeneratedItinerary(nextGenerated);
+      persistItineraryState(itineraryPlaces, nextGenerated);
+    }
+
+    if (itineraryPlaces.length < 5 && generatedItinerary) {
+      setGeneratedItinerary(null);
+      persistItineraryState(itineraryPlaces, null);
+    }
+  }, [
+    generatedItinerary,
+    itineraryPlaces,
+    persistItineraryState,
+  ]);
+
+  useEffect(() => {
+    if (itineraryPlaces.length >= 5 && generatedItinerary) {
+      console.warn(
+        "Generated itinerary available:",
+        JSON.stringify(generatedItinerary, null, 2),
+      );
+    }
+  }, [generatedItinerary, itineraryPlaces.length]);
 
   // saved places
   const addPlace = (place: ActivityModel) => {
@@ -126,7 +185,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     setSavedPlaces((prev) => {
       if (prev.some((p) => p.id === placeWithId.id)) return prev;
       const updated = [...prev, placeWithId];
-      saveToFirestore(updated);
+      void saveToFirestore(updated);
       return updated;
     });
   };
@@ -134,36 +193,61 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const removePlace = (placeId: string) => {
     setSavedPlaces((prev) => {
       const updated = prev.filter((p) => p.id !== placeId);
-      saveToFirestore(updated);
+      const updatedSelection = itineraryPlaces.filter((p) => p.id !== placeId);
+      const nextGenerated = generateItineraryResult(updatedSelection);
+
+      setItineraryPlaces(updatedSelection);
+      setGeneratedItinerary(nextGenerated);
+      void saveToFirestore(updated, updatedSelection, nextGenerated);
       return updated;
     });
-    setItineraryPlaces((prev) => prev.filter((p) => p.id !== placeId));
   };
 
   // itinerary logic
   const addToItinerary = (place: ActivityModel) => {
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
-      if (prev.length >= 5) return prev;
-      return [...prev, place];
+      const updated = [...prev, place];
+      const nextGenerated = generateItineraryResult(updated);
+      if (updated.length >= 5) {
+        console.log("Generated itinerary result:", nextGenerated);
+      }
+      setGeneratedItinerary(nextGenerated);
+      persistItineraryState(updated, nextGenerated);
+      return updated;
     });
   };
 
   const removeFromItinerary = (placeId: string) => {
-    setItineraryPlaces((prev) =>
-      prev.filter((p) => p.id !== placeId),
-    );
+    setItineraryPlaces((prev) => {
+      const updated = prev.filter((p) => p.id !== placeId);
+      const nextGenerated = generateItineraryResult(updated);
+      setGeneratedItinerary(nextGenerated);
+      persistItineraryState(updated, nextGenerated);
+      return updated;
+    });
   };
+
+  const generateItinerary = useCallback(() => {
+    const nextGenerated = generateItineraryResult(itineraryPlaces);
+    if (itineraryPlaces.length >= 5) {
+      console.log("Generated itinerary result:", nextGenerated);
+    }
+    setGeneratedItinerary(nextGenerated);
+    persistItineraryState(itineraryPlaces, nextGenerated);
+  }, [itineraryPlaces, persistItineraryState]);
 
   return (
     <SavedPlacesContext.Provider
       value={{
         savedPlaces,
         itineraryPlaces,
+        generatedItinerary,
         addPlace,
         removePlace,
         addToItinerary,
         removeFromItinerary,
+        generateItinerary,
       }}
     >
       {children}
