@@ -9,8 +9,7 @@ import {
 import { buildItineraryViewModel } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -281,7 +280,7 @@ function getTransitOptions(
   travelMinutes: number,
 ) {
   const trainDirections = getTransitDirections(fromPlace, toPlace);
-  
+
   return {
     train: {
       mode: "train",
@@ -323,8 +322,15 @@ function TransitDirections({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const options = getTransitOptions(fromPlace, toPlace, distanceMiles, travelMinutes);
-  const [selectedMode, setSelectedMode] = useState<"train" | "bus" | "walk">("train");
+  const options = getTransitOptions(
+    fromPlace,
+    toPlace,
+    distanceMiles,
+    travelMinutes,
+  );
+  const [selectedMode, setSelectedMode] = useState<"train" | "bus" | "walk">(
+    "train",
+  );
 
   return (
     <View style={styles.transitContainer}>
@@ -378,7 +384,7 @@ function TransitDirections({
                     </Text>
                   </Pressable>
                 );
-              }
+              },
             )}
           </View>
 
@@ -554,10 +560,7 @@ function StartTimeCard({
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={styles.modalConfirm}
-                onPress={handleCustomTime}
-              >
+              <Pressable style={styles.modalConfirm} onPress={handleCustomTime}>
                 <Text style={styles.modalConfirmText}>Set Time</Text>
               </Pressable>
             </View>
@@ -725,9 +728,7 @@ export default function ItineraryScreen() {
       {/* START TIME PICKER */}
       <StartTimeCard
         startTime={startTime}
-        onTimeChange={(hours, minutes) =>
-          setStartTime({ hours, minutes })
-        }
+        onTimeChange={(hours, minutes) => setStartTime({ hours, minutes })}
       />
 
       <View style={styles.summaryCard}>
@@ -1152,6 +1153,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
   miniMarker: {
     width: 28,
     height: 28,
