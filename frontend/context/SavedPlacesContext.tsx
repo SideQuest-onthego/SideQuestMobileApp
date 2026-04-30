@@ -141,6 +141,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ITINERARY TEMP STATE TO SEE IF IT CAN CALL FUNCTION
   const persistItineraryState = useCallback(
     (selection: ActivityModel[], itinerary: ItineraryResult | null) => {
       void saveToFirestore(savedPlaces, selection, itinerary);
@@ -150,8 +151,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (itineraryPlaces.length >= 5 && !generatedItinerary) {
-      const nextGenerated = generateItineraryResult(itineraryPlaces);
-      console.log("Generated itinerary result:", nextGenerated);
+      const nextGenerated = generateItineraryResult(itineraryPlaces); // function comes from services/itineraryEngine.ts
+      console.log("Generated itinerary result:", nextGenerated); // console log to see what the itinerary object looks like
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(itineraryPlaces, nextGenerated);
     }
