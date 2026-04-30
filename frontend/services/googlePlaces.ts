@@ -144,12 +144,38 @@ function buildSearchPlan(radiusMeters: number, origin: SearchCenter) {
   );
 }
 
+function parseLocationDetails(place: GooglePlace) {
+  const address = place.formattedAddress ?? place.shortFormattedAddress ?? "";
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const city =
+    parts.length >= 3 ? parts[parts.length - 3] : parts.length === 2 ? parts[0] : "";
+
+  const regionPart =
+    parts.length >= 3 ? parts[parts.length - 2] : parts.length === 2 ? parts[1] : "";
+  const regionTokens = regionPart.split(/\s+/).filter(Boolean);
+  const state = regionTokens[0] ?? "";
+
+  const country = parts.length >= 3 ? parts[parts.length - 1] : "US";
+
+  return {
+    address,
+    city,
+    state,
+    country,
+  };
+}
+
 function placeToActivity(place: GooglePlace): ActivityModel | null {
   if (!place.id || !place.location) return null;
 
   const name = place.displayName?.text ?? "Unknown place";
   const firstType = place.primaryType ?? place.types?.[0];
   const imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  const parsedLocation = parseLocationDetails(place);
 
   return {
     id: place.id,
@@ -159,10 +185,10 @@ function placeToActivity(place: GooglePlace): ActivityModel | null {
     tags: place.types ?? [],
     active: true,
     location: {
-      address: place.formattedAddress ?? place.shortFormattedAddress ?? "",
-      city: "New York",
-      state: "NY",
-      country: "US",
+      address: parsedLocation.address,
+      city: parsedLocation.city,
+      state: parsedLocation.state,
+      country: parsedLocation.country,
       lat: place.location.latitude,
       lng: place.location.longitude,
     },

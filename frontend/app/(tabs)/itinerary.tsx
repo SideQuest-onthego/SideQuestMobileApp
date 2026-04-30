@@ -6,11 +6,11 @@ import {
   generateItineraryWithGemini,
   type GeneratedItinerary,
 } from "@/services/geminiItinerary";
+import { formatCategoryLabel } from "@/services/placeDisplay";
 import { buildItineraryViewModel } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Image,
   Pressable,
@@ -920,7 +920,7 @@ export default function ItineraryScreen() {
                       {!!place.category ? (
                         <View style={styles.categoryChip}>
                           <Text style={styles.categoryChipText}>
-                            {place.category}
+                            {formatCategoryLabel(place.category, place.type)}
                           </Text>
                         </View>
                       ) : null}
@@ -1152,6 +1152,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
   miniMarker: {
     width: 28,
     height: 28,

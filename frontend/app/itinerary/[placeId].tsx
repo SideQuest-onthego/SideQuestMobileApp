@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import { formatCategoryLabel } from "@/services/placeDisplay";
 
 // ITINERARY PAGE PER PLACE
 
@@ -74,7 +75,11 @@ export default function ItineraryDetailScreen() {
                   {selectedPlace.location.city}, {selectedPlace.location.state}
                </Text>
                <Text style={styles.meta}>
-                  {selectedPlace.category} •{" "}
+                  {formatCategoryLabel(
+                     selectedPlace.category,
+                     selectedPlace.type,
+                  )}{" "}
+                  •{" "}
                   {formatPrice(
                      selectedPlace.estimatedCost.min,
                      selectedPlace.estimatedCost.max,
