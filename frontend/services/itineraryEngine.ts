@@ -15,6 +15,8 @@ type RouteCandidate = {
 const START_OF_DAY_MINS = 9 * 60;
 const MIN_STOP_DURATION_MINS = 45;
 const MAX_STOP_DURATION_MINS = 180;
+export const MIN_ITINERARY_PLACES = 2;
+export const MAX_ITINERARY_PLACES = 5;
 
 function getDistanceMiles(from: ActivityModel, to: ActivityModel): number {
   const lat1 = from.location.lat;
@@ -304,11 +306,11 @@ function buildStopNotes(
 export function generateItineraryResult(
   places: ActivityModel[],
 ): ItineraryResult | null {
-  if (places.length < 5) {
+  if (places.length < MIN_ITINERARY_PLACES) {
     return null;
   }
 
-  const ordered = orderPlacesForItinerary(places);
+  const ordered = orderPlacesForItinerary(places.slice(0, MAX_ITINERARY_PLACES));
   let clock = START_OF_DAY_MINS;
   let totalActivityMinutes = 0;
   let totalTravelMinutes = 0;
