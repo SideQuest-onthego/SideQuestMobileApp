@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import { useSavedPlaces } from "../context/SavedPlacesContext";
+import { MAX_ITINERARY_PLACES } from "@/services/itineraryEngine";
 
 type SavedPlaceCardProps = {
   item: ActivityModel;
@@ -20,6 +21,7 @@ export default function SavedPlaceCard({
   const { itineraryPlaces } = useSavedPlaces();
 
   const isAdded = itineraryPlaces.some(p => p.id === item.id);
+  const isItineraryFull = itineraryPlaces.length >= MAX_ITINERARY_PLACES;
 
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
@@ -45,7 +47,7 @@ export default function SavedPlaceCard({
         <View style={styles.buttonRow}>
 
           {/* Add to Itinerary button */}
-          {!isAdded && (
+          {!isAdded && !isItineraryFull && (
             <Pressable
               onPress={(event) => {
                 event.stopPropagation();
@@ -55,6 +57,11 @@ export default function SavedPlaceCard({
             >
               <Text style={styles.addText}>Add To Itinerary</Text>
             </Pressable>
+          )}
+          {!isAdded && isItineraryFull && (
+            <View style={styles.fullBadge}>
+              <Text style={styles.fullBadgeText}>Itinerary full</Text>
+            </View>
           )}
           {/* Remove button */}
           <Pressable
@@ -156,6 +163,18 @@ const styles = StyleSheet.create({
 
   addText: {
     color: "#fff",
+    fontWeight: "600",
+  },
+
+  fullBadge: {
+    backgroundColor: "#D8E2DC",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+
+  fullBadgeText: {
+    color: "#102C26",
     fontWeight: "600",
   },
 });
