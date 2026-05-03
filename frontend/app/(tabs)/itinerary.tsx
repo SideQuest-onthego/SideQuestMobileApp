@@ -7,7 +7,11 @@ import {
   type GeneratedItinerary,
 } from "@/services/geminiItinerary";
 import { formatCategoryLabel } from "@/services/placeDisplay";
-import { buildItineraryViewModel } from "@/services/itineraryEngine";
+import {
+  MAX_ITINERARY_PLACES,
+  MIN_ITINERARY_PLACES,
+  buildItineraryViewModel,
+} from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -596,7 +600,7 @@ export default function ItineraryScreen() {
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   const handleGenerateWithAi = useCallback(async () => {
-    if (itineraryPlaces.length < 5 || isGeneratingAi) return;
+    if (itineraryPlaces.length < MIN_ITINERARY_PLACES || isGeneratingAi) return;
 
     setAiModalVisible(true);
     setIsGeneratingAi(true);
@@ -663,8 +667,8 @@ export default function ItineraryScreen() {
     };
   }, [itineraryPlaces]);
 
-  if (itineraryPlaces.length < 5) {
-    const placesNeeded = 5 - itineraryPlaces.length;
+  if (itineraryPlaces.length < MIN_ITINERARY_PLACES) {
+    const placesNeeded = MIN_ITINERARY_PLACES - itineraryPlaces.length;
 
     return (
       <View style={styles.emptyState}>
@@ -673,7 +677,8 @@ export default function ItineraryScreen() {
         </View>
         <Text style={styles.emptyTitle}>Build your day plan</Text>
         <Text style={styles.emptyText}>
-          Select at least 5 saved places to generate an itinerary for the day.
+          Select at least {MIN_ITINERARY_PLACES} saved places to generate an
+          itinerary for the day. You can add up to {MAX_ITINERARY_PLACES}.
         </Text>
         <Text style={styles.selectionCount}>
           {itineraryPlaces.length} selected • {placesNeeded} more to go
