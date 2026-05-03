@@ -6,7 +6,7 @@ const MAX_NEARBY_RADIUS_METERS = 50000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_RESULTS_PER_REQUEST = 20;
 const INCLUDED_TYPES = ["tourist_attraction", "museum", "park", "restaurant"];
-const REQUESTS_PER_PAGE = 2;
+const REQUESTS_PER_PAGE = INCLUDED_TYPES.length;
 
 const nearbyPlacesCache = new Map<
   string,
@@ -139,9 +139,43 @@ function getCacheKey(
 
 function buildSearchPlan(radiusMeters: number, origin: SearchCenter) {
   const searchCenters = buildSearchCenters(radiusMeters, origin);
-  return INCLUDED_TYPES.flatMap((includedType) =>
-    searchCenters.map((center) => ({ includedType, center })),
+  const [primaryCenter, ...secondaryCenters] = searchCenters;
+
+  const primaryRequests = INCLUDED_TYPES.map((includedType) => ({
+    includedType,
+    center: primaryCenter,
+  }));
+
+  const secondaryRequests = secondaryCenters.flatMap((center) =>
+    INCLUDED_TYPES.map((includedType) => ({ includedType, center })),
   );
+
+  return [...primaryRequests, ...secondaryRequests];
+}
+
+function parseLocationDetails(place: GooglePlace) {
+  const address = place.formattedAddress ?? place.shortFormattedAddress ?? "";
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const city =
+    parts.length >= 3 ? parts[parts.length - 3] : parts.length === 2 ? parts[0] : "";
+
+  const regionPart =
+    parts.length >= 3 ? parts[parts.length - 2] : parts.length === 2 ? parts[1] : "";
+  const regionTokens = regionPart.split(/\s+/).filter(Boolean);
+  const state = regionTokens[0] ?? "";
+
+  const country = parts.length >= 3 ? parts[parts.length - 1] : "US";
+
+  return {
+    address,
+    city,
+    state,
+    country,
+  };
 }
 
 function placeToActivity(place: GooglePlace): ActivityModel | null {
@@ -150,6 +184,7 @@ function placeToActivity(place: GooglePlace): ActivityModel | null {
   const name = place.displayName?.text ?? "Unknown place";
   const firstType = place.primaryType ?? place.types?.[0];
   const imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  const parsedLocation = parseLocationDetails(place);
 
   return {
     id: place.id,
@@ -159,10 +194,10 @@ function placeToActivity(place: GooglePlace): ActivityModel | null {
     tags: place.types ?? [],
     active: true,
     location: {
-      address: place.formattedAddress ?? place.shortFormattedAddress ?? "",
-      city: "New York",
-      state: "NY",
-      country: "US",
+      address: parsedLocation.address,
+      city: parsedLocation.city,
+      state: parsedLocation.state,
+      country: parsedLocation.country,
       lat: place.location.latitude,
       lng: place.location.longitude,
     },

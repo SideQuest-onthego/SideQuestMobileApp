@@ -1,8 +1,9 @@
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import { formatCategoryLabel } from "@/services/placeDisplay";
 
 // ITINERARY PAGE PER PLACE
 
@@ -20,6 +21,7 @@ function formatPrice(min: number, max: number) {
 }
 
 export default function ItineraryDetailScreen() {
+   const router = useRouter();
    const { placeId } = useLocalSearchParams<{ placeId?: string }>(); // grabs placeId from POI
    const { savedPlaces } = useSavedPlaces();
 
@@ -33,6 +35,9 @@ export default function ItineraryDetailScreen() {
       // if doesn't exist or function can't find POI
       return (
          <View style={styles.emptyState}>
+            <Pressable style={styles.emptyBackButton} onPress={() => router.back()}>
+               <Text style={styles.backButtonText}>Back to Saved</Text>
+            </Pressable>
             <Text style={styles.emptyTitle}>Saved place not found</Text>
             <Text style={styles.emptyText}>
                This itinerary page is keyed by the saved POI id, but that place
@@ -53,7 +58,11 @@ export default function ItineraryDetailScreen() {
          style={styles.container}
          contentContainerStyle={styles.content}
       >
-         <Text style={styles.eyebrow}>Itinerary</Text>
+         <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Back to Saved</Text>
+         </Pressable>
+
+         <Text style={styles.eyebrow}>Saved Place</Text>
 
          <View style={styles.heroCard}>
             {selectedPlace.links?.imageUrl ? (
@@ -74,7 +83,11 @@ export default function ItineraryDetailScreen() {
                   {selectedPlace.location.city}, {selectedPlace.location.state}
                </Text>
                <Text style={styles.meta}>
-                  {selectedPlace.category} •{" "}
+                  {formatCategoryLabel(
+                     selectedPlace.category,
+                     selectedPlace.type,
+                  )}{" "}
+                  •{" "}
                   {formatPrice(
                      selectedPlace.estimatedCost.min,
                      selectedPlace.estimatedCost.max,
@@ -92,10 +105,37 @@ const styles = StyleSheet.create({
       backgroundColor: "#DBFEF7",
    },
    content: {
-      padding: 20,
+      flexGrow: 1,
+      paddingHorizontal: 24,
+      paddingTop: 60,
+      paddingBottom: 120,
       gap: 16,
    },
+   backButton: {
+      alignSelf: "flex-start",
+      marginBottom: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: "#111",
+      borderRadius: 999,
+   },
+   emptyBackButton: {
+      position: "absolute",
+      top: 60,
+      left: 24,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: "#111",
+      borderRadius: 999,
+   },
+   backButtonText: {
+      color: "#fff",
+      fontWeight: "700",
+   },
    eyebrow: {
+      width: "100%",
+      maxWidth: 360,
+      alignSelf: "center",
       fontSize: 13,
       fontWeight: "800",
       letterSpacing: 1,
@@ -103,17 +143,20 @@ const styles = StyleSheet.create({
       color: "#46655F",
    },
    heroCard: {
+      width: "100%",
+      maxWidth: 360,
+      alignSelf: "center",
       backgroundColor: "#FFFFFF",
-      borderRadius: 18,
+      borderRadius: 12,
       borderWidth: 2,
-      borderColor: "#102C26",
-      padding: 14,
+      borderColor: "#000000",
+      padding: 16,
       gap: 14,
    },
    heroImage: {
       width: "100%",
       height: 220,
-      borderRadius: 14,
+      borderRadius: 8,
    },
    imageFallback: {
       backgroundColor: "#C8DDD8",
@@ -129,7 +172,7 @@ const styles = StyleSheet.create({
       gap: 6,
    },
    title: {
-      fontSize: 28,
+      fontSize: 24,
       fontWeight: "800",
       color: "#102C26",
    },

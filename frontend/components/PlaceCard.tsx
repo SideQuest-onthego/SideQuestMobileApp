@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ActivityModel } from "../types/sidequest-models";
+import { formatCategoryLabel } from "../services/placeDisplay";
 
 type PlaceCardProps = {
   item: ActivityModel;
@@ -59,7 +60,9 @@ export default function PlaceCard({
             )}
           </View>
           {item.category && (
-            <Text style={styles.category}>{item.category}</Text>
+            <Text style={styles.category}>
+              {formatCategoryLabel(item.category, item.type)}
+            </Text>
           )}
         </View>
 

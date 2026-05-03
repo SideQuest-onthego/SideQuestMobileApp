@@ -9,7 +9,11 @@ import React, {
 } from "react";
 import type { ActivityModel } from "../types/sidequest-models";
 import type { ItineraryResult } from "@/types/itinerary";
-import { generateItineraryResult } from "@/services/itineraryEngine";
+import {
+  MAX_ITINERARY_PLACES,
+  MIN_ITINERARY_PLACES,
+  generateItineraryResult,
+} from "@/services/itineraryEngine";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
@@ -85,10 +89,13 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
         if (snapshot.exists()) {
           const savedData: ActivityModel[] = snapshot.data().saved || [];
-          const itinerarySelection: ActivityModel[] =
-            snapshot.data().itinerarySelection || [];
-          const savedGeneratedItinerary: ItineraryResult | null =
-            snapshot.data().generatedItinerary || null;
+          const itinerarySelection: ActivityModel[] = (
+            snapshot.data().itinerarySelection || []
+          ).slice(0, MAX_ITINERARY_PLACES);
+          const normalizedItinerarySelection = itinerarySelection.map((p) => ({
+            ...p,
+            id: p.id || crypto.randomUUID(),
+          }));
 
           setSavedPlaces(
             savedData.map((p) => ({
@@ -97,14 +104,11 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
             })),
           );
 
-          setItineraryPlaces(
-            itinerarySelection.map((p) => ({
-              ...p,
-              id: p.id || crypto.randomUUID(),
-            })),
-          );
+          setItineraryPlaces(normalizedItinerarySelection);
 
-          setGeneratedItinerary(savedGeneratedItinerary);
+          setGeneratedItinerary(
+            generateItineraryResult(normalizedItinerarySelection),
+          );
         } else {
           setSavedPlaces([]);
           setItineraryPlaces([]);
@@ -150,14 +154,20 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (itineraryPlaces.length >= 5 && !generatedItinerary) {
+    if (
+      itineraryPlaces.length >= MIN_ITINERARY_PLACES &&
+      !generatedItinerary
+    ) {
       const nextGenerated = generateItineraryResult(itineraryPlaces); // function comes from services/itineraryEngine.ts
       console.log("Generated itinerary result:", nextGenerated); // console log to see what the itinerary object looks like
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(itineraryPlaces, nextGenerated);
     }
 
-    if (itineraryPlaces.length < 5 && generatedItinerary) {
+    if (
+      itineraryPlaces.length < MIN_ITINERARY_PLACES &&
+      generatedItinerary
+    ) {
       setGeneratedItinerary(null);
       persistItineraryState(itineraryPlaces, null);
     }
@@ -168,7 +178,10 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   ]);
 
   useEffect(() => {
-    if (itineraryPlaces.length >= 5 && generatedItinerary) {
+    if (
+      itineraryPlaces.length >= MIN_ITINERARY_PLACES &&
+      generatedItinerary
+    ) {
       console.warn(
         "Generated itinerary available:",
         JSON.stringify(generatedItinerary, null, 2),
@@ -208,9 +221,11 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const addToItinerary = (place: ActivityModel) => {
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
+      if (prev.length >= MAX_ITINERARY_PLACES) return prev;
+
       const updated = [...prev, place];
       const nextGenerated = generateItineraryResult(updated);
-      if (updated.length >= 5) {
+      if (updated.length >= MIN_ITINERARY_PLACES) {
         console.log("Generated itinerary result:", nextGenerated);
       }
       setGeneratedItinerary(nextGenerated);
@@ -231,7 +246,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   const generateItinerary = useCallback(() => {
     const nextGenerated = generateItineraryResult(itineraryPlaces);
-    if (itineraryPlaces.length >= 5) {
+    if (itineraryPlaces.length >= MIN_ITINERARY_PLACES) {
       console.log("Generated itinerary result:", nextGenerated);
     }
     setGeneratedItinerary(nextGenerated);
