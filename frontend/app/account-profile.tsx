@@ -1,8 +1,11 @@
 import { auth } from "@/FirebaseConfig";
+import { useRouter } from "expo-router";
 import { onAuthStateChanged, updateProfile } from "firebase/auth";
 import { useEffect, useState } from "react";
 import {
    ActivityIndicator,
+   Pressable,
+   ScrollView,
    StyleSheet,
    Text,
    TextInput,
@@ -11,6 +14,7 @@ import {
 } from "react-native";
 
 export default function AccountProfileScreen() {
+   const router = useRouter();
    const [nameInput, setNameInput] = useState("");
    const [email, setEmail] = useState("Not available");
    const [status, setStatus] = useState("");
@@ -55,7 +59,14 @@ export default function AccountProfileScreen() {
    }
 
    return (
-      <View style={styles.container}>
+      <ScrollView
+         style={styles.container}
+         contentContainerStyle={styles.scrollContent}
+      >
+         <Pressable style={styles.backButton} onPress={() => router.back()}>
+            <Text style={styles.backButtonText}>Back</Text>
+         </Pressable>
+
          <Text style={styles.title}>Account Details</Text>
 
          <View style={styles.infoCard}>
@@ -86,56 +97,84 @@ export default function AccountProfileScreen() {
             <Text style={styles.label}>Email</Text>
             <Text style={styles.value}>{email}</Text>
          </View>
-      </View>
+      </ScrollView>
    );
 }
 
 const styles = StyleSheet.create({
    container: {
       flex: 1,
-      backgroundColor: "#CFDAF1",
+      backgroundColor: "#DBFEF7",
+   },
+   scrollContent: {
+      flexGrow: 1,
+      alignItems: "center",
       paddingHorizontal: 24,
-      paddingTop: 28,
+      paddingTop: 44,
+      paddingBottom: 120,
+   },
+   backButton: {
+      alignSelf: "flex-start",
+      marginTop: 16,
+      marginBottom: 28,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      backgroundColor: "#111",
+      borderRadius: 999,
+   },
+   backButtonText: {
+      color: "#fff",
+      fontWeight: "700",
    },
    title: {
       fontSize: 24,
-      fontWeight: "700",
+      fontWeight: "800",
       color: "#111827",
       marginBottom: 18,
+      width: "100%",
+      maxWidth: 320,
    },
    infoCard: {
+      width: "100%",
+      maxWidth: 320,
       backgroundColor: "#FFFFFF",
       borderRadius: 12,
-      borderWidth: 1,
-      borderColor: "#D1D5DB",
-      padding: 14,
-      marginBottom: 12,
+      borderWidth: 2,
+      borderColor: "#000000",
+      padding: 16,
+      marginBottom: 14,
    },
    label: {
-      fontSize: 13,
+      fontSize: 16,
       fontWeight: "600",
-      color: "#6B7280",
-      marginBottom: 6,
+      color: "#111827",
+      marginBottom: 8,
    },
    value: {
-      fontSize: 18,
-      color: "#111827",
-      fontWeight: "500",
+      borderWidth: 1.5,
+      borderColor: "#B7CFC8",
+      borderRadius: 14,
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      fontSize: 15,
+      color: "#102C26",
+      fontWeight: "700",
+      backgroundColor: "#F2FBF8",
    },
    input: {
-      borderWidth: 1,
-      borderColor: "#D1D5DB",
-      borderRadius: 10,
-      paddingHorizontal: 12,
+      borderWidth: 1.5,
+      borderColor: "#B7CFC8",
+      borderRadius: 14,
+      paddingHorizontal: 14,
       paddingVertical: 12,
       fontSize: 16,
       color: "#111827",
-      backgroundColor: "#F9FAFB",
+      backgroundColor: "#F2FBF8",
    },
    button: {
-      marginTop: 12,
-      backgroundColor: "#111827",
-      borderRadius: 10,
+      marginTop: 16,
+      backgroundColor: "#102C26",
+      borderRadius: 14,
       alignItems: "center",
       paddingVertical: 12,
    },
@@ -147,6 +186,7 @@ const styles = StyleSheet.create({
    status: {
       marginTop: 10,
       fontSize: 13,
-      color: "#374151",
+      color: "#5B746E",
+      fontWeight: "500",
    },
 });
