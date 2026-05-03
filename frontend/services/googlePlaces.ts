@@ -6,7 +6,7 @@ const MAX_NEARBY_RADIUS_METERS = 50000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_RESULTS_PER_REQUEST = 20;
 const INCLUDED_TYPES = ["tourist_attraction", "museum", "park", "restaurant"];
-const REQUESTS_PER_PAGE = 2;
+const REQUESTS_PER_PAGE = INCLUDED_TYPES.length;
 
 const nearbyPlacesCache = new Map<
   string,
@@ -139,9 +139,18 @@ function getCacheKey(
 
 function buildSearchPlan(radiusMeters: number, origin: SearchCenter) {
   const searchCenters = buildSearchCenters(radiusMeters, origin);
-  return INCLUDED_TYPES.flatMap((includedType) =>
-    searchCenters.map((center) => ({ includedType, center })),
+  const [primaryCenter, ...secondaryCenters] = searchCenters;
+
+  const primaryRequests = INCLUDED_TYPES.map((includedType) => ({
+    includedType,
+    center: primaryCenter,
+  }));
+
+  const secondaryRequests = secondaryCenters.flatMap((center) =>
+    INCLUDED_TYPES.map((includedType) => ({ includedType, center })),
   );
+
+  return [...primaryRequests, ...secondaryRequests];
 }
 
 function parseLocationDetails(place: GooglePlace) {
