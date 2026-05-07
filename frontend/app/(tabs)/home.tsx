@@ -18,11 +18,15 @@ const MILES_TO_METERS = 1609.34;
 
 export default function HomeScreen() {
   const { userLocation, radiusMiles } = useLocation();
+
   const [data, setData] = useState<ActivityModel[]>(places);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+
+  // NEW
+  const [swipeColor, setSwipeColor] = useState("#DBFEF7");
 
   useEffect(() => {
     let mounted = true;
@@ -31,8 +35,10 @@ export default function HomeScreen() {
       setLoading(true);
       setError(null);
       setNextCursor(0);
+
       try {
         const preferences = await loadUserSearchPreferences();
+
         const searchCenter = userLocation
           ? {
               lat: userLocation.latitude,
@@ -42,18 +48,22 @@ export default function HomeScreen() {
               lat: 40.7831,
               lng: -73.9712,
             };
+
         const firstPage = await fetchNearbyPlacesPage(
           searchCenter,
           radiusMiles * MILES_TO_METERS,
           0,
         );
+
         if (!mounted) return;
+
         if (firstPage.places.length > 0) {
           setData(rankPlacesByPreferences(firstPage.places, preferences));
           setNextCursor(firstPage.nextCursor);
         } else {
           setData(rankPlacesByPreferences(places, preferences));
           setNextCursor(null);
+
           setError(
             userLocation
               ? "No live places matched this location and distance, so showing fallback recommendations."
@@ -62,7 +72,10 @@ export default function HomeScreen() {
         }
       } catch (e) {
         if (!mounted) return;
-        const message = e instanceof Error ? e.message : "Failed to load places";
+
+        const message =
+          e instanceof Error ? e.message : "Failed to load places";
+
         setError(message);
         setData(rankPlacesByPreferences(places, DEFAULT_PREFERENCES));
         setNextCursor(null);
@@ -72,6 +85,7 @@ export default function HomeScreen() {
     }
 
     loadPlaces();
+
     return () => {
       mounted = false;
     };
@@ -86,6 +100,7 @@ export default function HomeScreen() {
 
     try {
       const preferences = await loadUserSearchPreferences();
+
       const searchCenter = userLocation
         ? {
             lat: userLocation.latitude,
@@ -95,6 +110,7 @@ export default function HomeScreen() {
             lat: 40.7831,
             lng: -73.9712,
           };
+
       const page = await fetchNearbyPlacesPage(
         searchCenter,
         radiusMiles * MILES_TO_METERS,
@@ -103,14 +119,22 @@ export default function HomeScreen() {
 
       setData((prev) => {
         const merged = new Map(prev.map((place) => [place.id, place]));
+
         for (const place of page.places) {
           merged.set(place.id, place);
         }
-        return rankPlacesByPreferences(Array.from(merged.values()), preferences);
+
+        return rankPlacesByPreferences(
+          Array.from(merged.values()),
+          preferences,
+        );
       });
+
       setNextCursor(page.nextCursor);
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Failed to load more places";
+      const message =
+        e instanceof Error ? e.message : "Failed to load more places";
+
       setError(message);
     } finally {
       setIsLoadingMore(false);
@@ -118,24 +142,34 @@ export default function HomeScreen() {
   }
 
   return (
-      <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[
+        styles.container,
+        { backgroundColor: swipeColor },
+      ]}
+    >
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
+
           <Text style={styles.loadingText}>
             {userLocation
               ? `Loading places within ${radiusMiles} miles of your selected location...`
               : "Loading places near the default area..."}
           </Text>
         </View>
-        ) : (
+      ) : (
         <>
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : null}
+
           <SwipeDeck
             data={data}
             onNearEnd={handleLoadMore}
             hasMore={nextCursor !== null}
             isLoadingMore={isLoadingMore}
+            setSwipeColor={setSwipeColor}
           />
         </>
       )}
@@ -148,6 +182,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#DBFEF7",
   },
+
   centered: {
     flex: 1,
     alignItems: "center",
@@ -155,9 +190,11 @@ const styles = StyleSheet.create({
     gap: 10,
     paddingHorizontal: 16,
   },
+
   loadingText: {
     fontSize: 14,
   },
+
   errorText: {
     textAlign: "center",
     color: "#8A1C1C",
