@@ -2,6 +2,7 @@ import { auth } from "@/FirebaseConfig";
 import { useRouter } from "expo-router";
 import { onAuthStateChanged, updateProfile } from "firebase/auth";
 import { useEffect, useState } from "react";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
    ActivityIndicator,
    Pressable,
@@ -59,6 +60,7 @@ export default function AccountProfileScreen() {
    }
 
    return (
+       <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
          style={styles.container}
          contentContainerStyle={styles.scrollContent}
@@ -98,6 +100,7 @@ export default function AccountProfileScreen() {
             <Text style={styles.value}>{email}</Text>
          </View>
       </ScrollView>
+      </SafeAreaView>
    );
 }
 
@@ -110,7 +113,7 @@ const styles = StyleSheet.create({
       flexGrow: 1,
       alignItems: "center",
       paddingHorizontal: 24,
-      paddingTop: 44,
+     // paddingTop: 44,
       paddingBottom: 120,
    },
    backButton: {

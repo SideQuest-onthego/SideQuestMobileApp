@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import SwipeDeck from "../../components/SwipeDeck";
 import { useLocation } from "../../context/LocationContext";
 import { places } from "../../data/places";
@@ -117,7 +118,7 @@ export default function HomeScreen() {
   }
 
   return (
-    <View style={styles.container}>
+      <SafeAreaView style={styles.container}>
       {loading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" />
@@ -138,7 +139,7 @@ export default function HomeScreen() {
           />
         </>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
