@@ -7,8 +7,8 @@ import {
   Text,
   Pressable,
   TextInput,
+  SafeAreaView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
 import SavedPlaceCard from "../../components/SavedPlaceCard";
@@ -24,6 +24,7 @@ function getAveragePrice(min?: number, max?: number) {
 export default function SavedScreen() {
   const router = useRouter();
   const { savedPlaces, removePlace, addToItinerary } = useSavedPlaces();
+
   const [selectedFilter, setSelectedFilter] =
     useState<"all" | "free" | "paid">("all");
 
@@ -76,7 +77,7 @@ export default function SavedScreen() {
   });
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container}>
       <FlatList
         data={sortedPlaces}
         keyExtractor={(item) => item.id}
@@ -266,7 +267,7 @@ const styles = StyleSheet.create({
   },
 
   header: {
-   // paddingTop: 10,
+    paddingTop: 10,
     paddingHorizontal: 12,
   },
 
@@ -295,11 +296,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#102C26",
+    borderColor: "#000000",
   },
 
   activeFilterButton: {
-    backgroundColor: "#102C26",
+    backgroundColor: "#000000",
   },
 
   filterText: {
@@ -330,7 +331,7 @@ const styles = StyleSheet.create({
   },
 
   activeSortButton: {
-    backgroundColor: "#102C26",
+    backgroundColor: "#000000",
   },
 
   sortText: {

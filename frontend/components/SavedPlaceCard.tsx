@@ -19,13 +19,12 @@ export default function SavedPlaceCard({
 }: SavedPlaceCardProps) {
 
   const { itineraryPlaces } = useSavedPlaces();
-  //console.log("CARD ITEM:", JSON.stringify(item, null, 2));
+
   const isAdded = itineraryPlaces.some(p => p.id === item.id);
   const isItineraryFull = itineraryPlaces.length >= MAX_ITINERARY_PLACES;
 
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
-      {/* Left: Image */}
       {/* Left: Image */}
       {item.links?.imageUrl ? (
         <Image source={{ uri: item.links.imageUrl }} style={styles.image} />
@@ -34,6 +33,7 @@ export default function SavedPlaceCard({
           <Text style={styles.imagePlaceholderText}>No Image</Text>
         </View>
       )}
+
       {/* Middle: Info */}
       <View style={styles.infoContainer}>
         <View>
@@ -143,7 +143,7 @@ const styles = StyleSheet.create({
   },
 
   removeButton: {
-    backgroundColor: "#102C26",
+    backgroundColor: "#000",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
@@ -155,7 +155,7 @@ const styles = StyleSheet.create({
   },
 
   addButton: {
-    backgroundColor: "#102C26",
+    backgroundColor: "#000",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,

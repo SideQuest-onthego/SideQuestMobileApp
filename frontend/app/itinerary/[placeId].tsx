@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useMemo } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
 import { formatCategoryLabel } from "@/services/placeDisplay";
 
@@ -54,7 +54,6 @@ export default function ItineraryDetailScreen() {
     * try to reference components using typescript interface (/(types)/sidequest-model.ts)
     */
    return (
-      <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
          style={styles.container}
          contentContainerStyle={styles.content}
@@ -97,7 +96,6 @@ export default function ItineraryDetailScreen() {
             </View>
          </View>
       </ScrollView>
-      </SafeAreaView>
    );
 }
 
@@ -109,7 +107,7 @@ const styles = StyleSheet.create({
    content: {
       flexGrow: 1,
       paddingHorizontal: 24,
-    //  paddingTop: 60,
+      paddingTop: 60,
       paddingBottom: 120,
       gap: 16,
    },
@@ -118,7 +116,7 @@ const styles = StyleSheet.create({
       marginBottom: 12,
       paddingHorizontal: 14,
       paddingVertical: 10,
-      backgroundColor: "#102C26",
+      backgroundColor: "#111",
       borderRadius: 999,
    },
    emptyBackButton: {
