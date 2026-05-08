@@ -14,6 +14,7 @@ import {
 } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
   Image,
@@ -719,6 +720,7 @@ export default function ItineraryScreen() {
   }
 
   return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#DBFEF7" }} edges={["top"]}>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -996,6 +998,7 @@ export default function ItineraryScreen() {
         onClose={() => setAiModalVisible(false)}
       />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -1006,7 +1009,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    //paddingTop: 24,
     paddingBottom: 36,
   },
   header: {

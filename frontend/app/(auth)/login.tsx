@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/FirebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
    const router = useRouter();
@@ -60,6 +61,7 @@ export default function LoginScreen() {
    }
 
    return (
+      <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
          style={styles.container}
          behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -166,6 +168,7 @@ export default function LoginScreen() {
             </View>
          </ScrollView>
       </KeyboardAvoidingView>
+      </SafeAreaView>
    );
 }
 
