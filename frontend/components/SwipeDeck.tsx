@@ -22,8 +22,6 @@ type Props = {
   onNearEnd?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
-
-  setSwipeColor?: (color: string) => void;
 };
 
 export default function SwipeDeck({
@@ -32,7 +30,6 @@ export default function SwipeDeck({
   onNearEnd,
   hasMore = false,
   isLoadingMore = false,
-  setSwipeColor,
 }: Props) {
   const [index, setIndex] = useState(0);
   const [hasPlayedHint, setHasPlayedHint] = useState(false);
@@ -41,34 +38,37 @@ export default function SwipeDeck({
 
   const { addPlace } = useSavedPlaces();
 
-  const resetColor = () => setSwipeColor?.("#DBFEF7");
-
   useEffect(() => {
     if (index === 0 && !hasPlayedHint) {
       Animated.sequence([
         Animated.delay(350),
 
+        // move slightly to the right
         Animated.timing(pan.x, {
           toValue: 70,
           duration: 460,
           useNativeDriver: false,
         }),
 
+        // then move slightly to the left
         Animated.timing(pan.x, {
           toValue: -75,
           duration: 520,
           useNativeDriver: false,
         }),
 
+        // return to center
         Animated.spring(pan.x, {
           toValue: 0,
           useNativeDriver: false,
           friction: 6,
           tension: 70,
         }),
-      ]).start(() => setHasPlayedHint(true));
+      ]).start(() => {
+        setHasPlayedHint(true);
+      });
     }
-  }, [index, hasPlayedHint]);
+  }, [index, hasPlayedHint, pan.x]);
 
   const rotate = pan.x.interpolate({
     inputRange: [-SCREEN_WIDTH, 0, SCREEN_WIDTH],
@@ -95,11 +95,7 @@ export default function SwipeDeck({
 
   const bgColor = pan.x.interpolate({
     inputRange: [-SWIPE_THRESHOLD, 0, SWIPE_THRESHOLD],
-    outputRange: [
-      "rgba(255,0,0,1)",
-      "rgba(0,0,0,1)",
-      "rgba(0,200,0,1)",
-    ],
+    outputRange: ["rgba(255,0,0,1)", "rgba(0,0,0,1)", "rgba(0,200,0,1)"],
     extrapolate: "clamp",
   });
 
@@ -107,19 +103,9 @@ export default function SwipeDeck({
     onMoveShouldSetPanResponder: (_, g) =>
       Math.abs(g.dx) > 5 || Math.abs(g.dy) > 5,
 
-    // ✅ FIXED: real-time swipe color update
-    onPanResponderMove: (_, g) => {
-      pan.x.setValue(g.dx);
-      pan.y.setValue(g.dy);
-
-      if (g.dx > 30) {
-        setSwipeColor?.("#4CAF50"); // right → green
-      } else if (g.dx < -30) {
-        setSwipeColor?.("#F44336"); // left → red
-      } else {
-        setSwipeColor?.("#DBFEF7"); // center → default
-      }
-    },
+    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+      useNativeDriver: false,
+    }),
 
     onPanResponderRelease: (_, g) => {
       if (g.dx > SWIPE_THRESHOLD) forceSwipe("right");
@@ -130,9 +116,6 @@ export default function SwipeDeck({
 
   function forceSwipe(dir: "left" | "right") {
     const x = dir === "right" ? SCREEN_WIDTH : -SCREEN_WIDTH;
-
-    setSwipeColor?.(dir === "right" ? "#4CAF50" : "#F44336");
-
     Animated.timing(pan, {
       toValue: { x, y: 0 },
       duration: SWIPE_OUT_DURATION,
@@ -144,12 +127,14 @@ export default function SwipeDeck({
     const item = data[index];
     if (!item) return;
 
-    if (dir === "right") addPlace(item);
-    else onSwipeLeft?.(item);
+    if (dir === "right") {
+      addPlace(item);
+    } else {
+      onSwipeLeft?.(item);
+    }
 
     pan.setValue({ x: 0, y: 0 });
     setIndex((prev) => prev + 1);
-    resetColor();
   }
 
   function resetPosition() {
@@ -157,7 +142,7 @@ export default function SwipeDeck({
       toValue: { x: 0, y: 0 },
       useNativeDriver: false,
       friction: 5,
-    }).start(() => resetColor());
+    }).start();
   }
 
   useEffect(() => {
@@ -179,9 +164,7 @@ export default function SwipeDeck({
   if (index >= data.length) {
     return (
       <View style={styles.container}>
-        <Text style={styles.endScreen}>
-          Looks like you have seen it all
-        </Text>
+        <Text style={styles.endScreen}>Looks like you have seen it all</Text>
       </View>
     );
   }
@@ -194,10 +177,7 @@ export default function SwipeDeck({
         pointerEvents="none"
         style={[
           StyleSheet.absoluteFillObject,
-          {
-            backgroundColor: bgColor,
-            opacity: bgOpacity,
-          },
+          { backgroundColor: bgColor, opacity: bgOpacity },
         ]}
       />
 
@@ -214,11 +194,15 @@ export default function SwipeDeck({
         ]}
         {...panResponder.panHandlers}
       >
-        <Animated.View style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}>
+        <Animated.View
+          style={[styles.badge, styles.likeBadge, { opacity: likeOpacity }]}
+        >
           <Text style={styles.badgeText}>LIKE</Text>
         </Animated.View>
 
-        <Animated.View style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}>
+        <Animated.View
+          style={[styles.badge, styles.nopeBadge, { opacity: nopeOpacity }]}
+        >
           <Text style={styles.badgeText}>NOPE</Text>
         </Animated.View>
 
@@ -228,12 +212,9 @@ export default function SwipeDeck({
           onLike={() => forceSwipe("right")}
         />
       </Animated.View>
-
       {isLoadingMore ? (
         <View style={styles.loadingMoreWrap} pointerEvents="none">
-          <Text style={styles.loadingMoreText}>
-            Loading more places...
-          </Text>
+          <Text style={styles.loadingMoreText}>Loading more places...</Text>
         </View>
       ) : null}
     </View>
@@ -242,7 +223,7 @@ export default function SwipeDeck({
 
 const styles = StyleSheet.create({
   container: {
-   // backgroundColor: "#dbfef7",
+    backgroundColor: "#dbfef7",
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -257,6 +238,17 @@ const styles = StyleSheet.create({
   cardLayer: {
     width: "100%",
     height: "100%",
+  },
+
+  tutorialOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
   },
 
   badge: {

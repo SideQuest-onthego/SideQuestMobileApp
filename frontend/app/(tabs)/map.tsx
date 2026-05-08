@@ -17,7 +17,7 @@ import {
 import * as Location from "expo-location";
 import Slider from "@react-native-community/slider";
 import { useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 type Place = {
    id: string;
    title: string;
@@ -61,7 +61,7 @@ export default function MapScreen() {
    // ── Synced with LocationContext so both screens share the same value ──
    const { userLocation, setUserLocation, radiusMiles, setRadiusMiles } =
       useLocation();
-   const insets = useSafeAreaInsets();
+
    // Local state for smooth dragging; syncs from context when other screen changes it
    const [localRadius, setLocalRadius] = useState<number>(radiusMiles);
    const [routeVisible, setRouteVisible] = useState<boolean>(true);
@@ -617,10 +617,7 @@ export default function MapScreen() {
          </MapView>
 
          {/* Search bar */}
-         <View style={[styles.searchWrapper,
-            { top: insets.top + 12 }
-            ]}
-         >
+         <View style={styles.searchWrapper}>
             <View style={styles.searchBar}>
                <Text style={styles.searchIcon}>🔍</Text>
                <TextInput
@@ -680,12 +677,7 @@ export default function MapScreen() {
          </View>
 
          {/* Bottom controls */}
-         <View 
-         style={[
-            styles.bottomPanel,
-            { bottom: insets.bottom + 16 }
-         ]}
-         >
+         <View style={styles.bottomPanel}>
             {/* Route Toggle Button */}
             {routeCoordinates.length >= 1 && visiblePlaces.length > 0 && (
                <TouchableOpacity
@@ -961,7 +953,7 @@ const styles = StyleSheet.create({
    container: { flex: 1 },
    searchWrapper: {
       position: "absolute",
-     // top: 56,
+      top: 56,
       left: 16,
       right: 16,
       zIndex: 10,
@@ -1011,7 +1003,7 @@ const styles = StyleSheet.create({
    noResultsText: { color: "#999", fontSize: 14 },
    bottomPanel: {
       position: "absolute",
-    //  bottom: 40,
+      bottom: 40,
       left: 16,
       right: 16,
       gap: 10,
