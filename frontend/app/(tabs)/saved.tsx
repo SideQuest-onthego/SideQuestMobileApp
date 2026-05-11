@@ -8,6 +8,7 @@ import {
   Pressable,
   TextInput,
   SafeAreaView,
+  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
@@ -24,6 +25,7 @@ function getAveragePrice(min?: number, max?: number) {
 export default function SavedScreen() {
   const router = useRouter();
   const { savedPlaces, removePlace, addToItinerary } = useSavedPlaces();
+  const overBudgetMessage = "Unable to add place to itinerary, too expensive";
 
   const [selectedFilter, setSelectedFilter] =
     useState<"all" | "free" | "paid">("all");
@@ -75,6 +77,15 @@ export default function SavedScreen() {
 
     return 0;
   });
+
+  const handleAddToItinerary = (place: (typeof savedPlaces)[number]) => {
+    const result = addToItinerary(place);
+
+    if (result === "over-budget") {
+      console.log(overBudgetMessage);
+      Alert.alert("Budget exceeded", overBudgetMessage);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -231,7 +242,7 @@ export default function SavedScreen() {
           <SavedPlaceCard
             item={item}
             onRemove={removePlace}
-            onAddToItinerary={addToItinerary}
+            onAddToItinerary={handleAddToItinerary}
             onPress={(place) =>
               router.push({
                 pathname: "/itinerary/[placeId]",
@@ -355,4 +366,3 @@ const styles = StyleSheet.create({
     color: "#555",
   },
 });
-

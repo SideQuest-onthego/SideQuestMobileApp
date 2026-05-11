@@ -12,11 +12,13 @@ import type { ItineraryResult } from "@/types/itinerary";
 import {
   MAX_ITINERARY_PLACES,
   MIN_ITINERARY_PLACES,
+  canAddPlaceWithinBudget,
   generateItineraryResult,
 } from "@/services/itineraryEngine";
+import { DEFAULT_PREFERENCES } from "@/services/userPreferences";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 
 type SavedPlacesContextType = {
@@ -27,10 +29,12 @@ type SavedPlacesContextType = {
   addPlace: (place: ActivityModel) => void;
   removePlace: (placeId: string) => void;
 
-  addToItinerary: (place: ActivityModel) => void;
+  addToItinerary: (place: ActivityModel) => AddToItineraryResult;
   removeFromItinerary: (placeId: string) => void;
   generateItinerary: () => void;
 };
+
+type AddToItineraryResult = "added" | "duplicate" | "full" | "over-budget";
 
 const SavedPlacesContext = createContext<
   SavedPlacesContextType | undefined
@@ -65,6 +69,9 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [generatedItinerary, setGeneratedItinerary] =
     useState<ItineraryResult | null>(null);
+  const [itineraryBudget, setItineraryBudget] = useState(
+    DEFAULT_PREFERENCES.budget,
+  );
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   // auth listener
@@ -72,6 +79,31 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(
+      doc(db, "userPreferences", user.uid),
+      (snapshot) => {
+        const data = snapshot.data();
+        setItineraryBudget(
+          typeof data?.budget === "number" && data.budget > 0
+            ? data.budget
+            : DEFAULT_PREFERENCES.budget,
+        );
+      },
+      (error) => {
+        console.error("Failed to load itinerary budget:", error);
+        setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
 
   // load saved places
   useEffect(() => {
@@ -219,9 +251,16 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   // itinerary logic
   const addToItinerary = (place: ActivityModel) => {
+    if (itineraryPlaces.some((p) => p.id === place.id)) return "duplicate";
+    if (itineraryPlaces.length >= MAX_ITINERARY_PLACES) return "full";
+    if (!canAddPlaceWithinBudget(itineraryPlaces, place, itineraryBudget)) {
+      return "over-budget";
+    }
+
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
       if (prev.length >= MAX_ITINERARY_PLACES) return prev;
+      if (!canAddPlaceWithinBudget(prev, place, itineraryBudget)) return prev;
 
       const updated = [...prev, place];
       const nextGenerated = generateItineraryResult(updated);
@@ -232,6 +271,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       persistItineraryState(updated, nextGenerated);
       return updated;
     });
+
+    return "added";
   };
 
   const removeFromItinerary = (placeId: string) => {
