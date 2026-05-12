@@ -70,9 +70,23 @@ function formatHours(minutes: number) {
 
 // Format time object to string (HH:MM AM/PM)
 function formatTimeString(hours: number, minutes: number): string {
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  const normalizedHours = ((hours % 24) + 24) % 24;
+  const period = normalizedHours >= 12 ? "PM" : "AM";
+  const displayHours =
+    normalizedHours > 12
+      ? normalizedHours - 12
+      : normalizedHours === 0
+        ? 12
+        : normalizedHours;
   return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+function formatMinutesSinceMidnight(minutesSinceMidnight: number): string {
+  const normalized = ((minutesSinceMidnight % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+
+  return formatTimeString(hours, minutes);
 }
 
 // Parse time string to hours and minutes
@@ -114,105 +128,21 @@ function TravelRow({ stop }: { stop: ItineraryStopResult }) {
   );
 }
 
-// Calculate distance between two coordinates in miles (haversine formula)
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 3958.8; // Earth's radius in miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// Calculate trip duration in hours
-function calculateTripDuration(stops: any[]): number {
-  const validStops = stops.filter((s) => s.location?.lat && s.location?.lng);
-
-  if (validStops.length === 0) return 0;
-
-  // Time spent at each location (1.5 hours per stop)
-  const timePerStop = 1.5;
-  const timeAtLocations = validStops.length * timePerStop;
-
-  // Travel time between stops (estimated at 30 mph average)
-  const averageSpeed = 30; // mph
-  let travelDistance = 0;
-
-  for (let i = 0; i < validStops.length - 1; i++) {
-    const currentStop = validStops[i];
-    const nextStop = validStops[i + 1];
-
-    const distance = calculateDistance(
-      currentStop.location.lat,
-      currentStop.location.lng,
-      nextStop.location.lat,
-      nextStop.location.lng,
-    );
-
-    travelDistance += distance;
-  }
-
-  const travelTime = travelDistance / averageSpeed;
-
-  return timeAtLocations + travelTime;
-}
-
-// Calculate arrival times for all stops
-function calculateArrivalTimes(
-  stops: any[],
+function calculateTimelineTimes(
+  stops: ItineraryStopResult[],
   startHours: number,
   startMinutes: number,
-): string[] {
-  const timePerStop = 1.5; // hours
-  const averageSpeed = 30; // mph
+): { startTime: string; endTime: string }[] {
+  let clock = startHours * 60 + startMinutes;
 
-  let currentHours = startHours;
-  let currentMinutes = startMinutes;
-  const arrivalTimes: string[] = [];
+  return stops.map((stop) => {
+    clock += stop.travelTimeMinsFromPrevious;
+    const startTime = formatMinutesSinceMidnight(clock);
+    clock += stop.durationMins;
+    const endTime = formatMinutesSinceMidnight(clock);
 
-  for (let i = 0; i < stops.length; i++) {
-    // Add arrival time at this stop
-    arrivalTimes.push(formatTimeString(currentHours, currentMinutes));
-
-    // If not the last stop, calculate travel time to next stop
-    if (i < stops.length - 1) {
-      const currentStop = stops[i];
-      const nextStop = stops[i + 1];
-
-      if (currentStop.location?.lat && nextStop.location?.lat) {
-        // Travel time
-        const distance = calculateDistance(
-          currentStop.location.lat,
-          currentStop.location.lng,
-          nextStop.location.lat,
-          nextStop.location.lng,
-        );
-        const travelTimeHours = distance / averageSpeed;
-
-        // Time at current location
-        const totalMinutes =
-          currentMinutes + (travelTimeHours + timePerStop) * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      } else {
-        // Fallback: just add time per stop
-        const totalMinutes = currentMinutes + timePerStop * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      }
-    }
-  }
-
-  return arrivalTimes;
+    return { startTime, endTime };
+  });
 }
 
 const TRANSIT_MODE_OPTIONS: Record<
@@ -666,7 +596,10 @@ export default function ItineraryScreen() {
     setIsGeneratingAi(true);
 
     try {
-      const result = await generateItineraryWithGemini(itineraryPlaces);
+      const result = await generateItineraryWithGemini(
+        itineraryPlaces,
+        formatTimeString(startTime.hours, startTime.minutes),
+      );
       setAiItinerary(result);
     } catch (error) {
       console.error("Failed to generate AI itinerary:", error);
@@ -674,16 +607,16 @@ export default function ItineraryScreen() {
     } finally {
       setIsGeneratingAi(false);
     }
-  }, [itineraryPlaces, isGeneratingAi]);
-  // Calculate arrival times based on start time
-  const arrivalTimes = useMemo(
+  }, [itineraryPlaces, isGeneratingAi, startTime]);
+
+  const timelineTimes = useMemo(
     () =>
-      calculateArrivalTimes(
-        itineraryPlaces,
+      calculateTimelineTimes(
+        itineraryView.map(({ stop }) => stop),
         startTime.hours,
         startTime.minutes,
       ),
-    [itineraryPlaces, startTime],
+    [itineraryView, startTime],
   );
 
   // Calculate map region for miniature preview
@@ -822,8 +755,8 @@ export default function ItineraryScreen() {
 
           <Text style={styles.summaryRange}>
             {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
-            {arrivalTimes.length > 0
-              ? arrivalTimes[arrivalTimes.length - 1]
+            {timelineTimes.length > 0
+              ? timelineTimes[timelineTimes.length - 1].endTime
               : "End time"}
           </Text>
         </View>
@@ -905,8 +838,8 @@ export default function ItineraryScreen() {
                     <View style={styles.stopTopRow}>
                       <View>
                         <Text style={styles.timeText}>
-                          {arrivalTimes[index] || stop.startTime} -{" "}
-                          {stop.endTime}
+                          {timelineTimes[index]?.startTime ?? stop.startTime} -{" "}
+                          {timelineTimes[index]?.endTime ?? stop.endTime}
                         </Text>
                         <Text style={styles.durationText}>
                           {stop.durationMins} min stop
