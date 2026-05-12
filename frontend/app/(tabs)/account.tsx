@@ -568,6 +568,7 @@ const styles = StyleSheet.create({
   },
   selectedLocationPill: {
     marginTop: 14,
+    marginBottom: 8,
     borderRadius: 14,
     backgroundColor: "#F2FBF8",
     borderWidth: 1,
@@ -617,6 +618,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
+    marginBottom: 6,
   },
   sliderValue: {
     fontSize: 16,

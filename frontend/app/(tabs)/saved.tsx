@@ -7,10 +7,10 @@ import {
   Text,
   Pressable,
   TextInput,
-  SafeAreaView,
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
 import SavedPlaceCard from "../../components/SavedPlaceCard";
 
@@ -92,7 +92,7 @@ export default function SavedScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <FlatList
         data={sortedPlaces}
         keyExtractor={(item) => item.id}
@@ -295,7 +295,7 @@ export default function SavedScreen() {
           </Text>
         }
       />
-    </SafeAreaView>
+   </SafeAreaView>
   );
 }
 

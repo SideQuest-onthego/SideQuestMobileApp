@@ -37,6 +37,7 @@ import {
   View,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
 
 function formatPrice(min: number, max: number) {
@@ -708,7 +709,8 @@ export default function ItineraryScreen() {
   }
 
   return (
-    <ScrollView
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -990,6 +992,7 @@ export default function ItineraryScreen() {
         onClose={() => setAiModalVisible(false)}
       />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
