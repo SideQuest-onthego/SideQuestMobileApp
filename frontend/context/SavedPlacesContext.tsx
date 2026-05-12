@@ -15,6 +15,7 @@ import {
   canAddPlaceWithinBudget,
   generateItineraryResult,
 } from "@/services/itineraryEngine";
+import { fetchGooglePlacePhotoUrl } from "@/services/googlePlaces";
 import { DEFAULT_PREFERENCES } from "@/services/userPreferences";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
@@ -55,6 +56,36 @@ function stripUndefined<T>(value: T): T {
   }
 
   return value;
+}
+
+function getGooglePlaceId(place: ActivityModel) {
+  return place.source?.googlePlaceId || place.id;
+}
+
+async function refreshGooglePlaceImages(places: ActivityModel[]) {
+  return Promise.all(
+    places.map(async (place) => {
+      if (place.source?.provider !== "google_places") {
+        return place;
+      }
+
+      try {
+        const imageUrl = await fetchGooglePlacePhotoUrl(getGooglePlaceId(place));
+        if (!imageUrl) return place;
+
+        return {
+          ...place,
+          links: {
+            ...place.links,
+            imageUrl,
+          },
+        };
+      } catch (error) {
+        console.warn(`Failed to load Google photo for ${place.id}:`, error);
+        return place;
+      }
+    }),
+  );
 }
 
 export function useSavedPlaces() {
@@ -124,22 +155,37 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
           const itinerarySelection: ActivityModel[] = (
             snapshot.data().itinerarySelection || []
           ).slice(0, MAX_ITINERARY_PLACES);
+          const normalizedSavedPlaces = savedData.map((p) => ({
+            ...p,
+            id: p.id || crypto.randomUUID(),
+          }));
           const normalizedItinerarySelection = itinerarySelection.map((p) => ({
             ...p,
             id: p.id || crypto.randomUUID(),
           }));
-
-          setSavedPlaces(
-            savedData.map((p) => ({
-              ...p,
-              id: p.id || crypto.randomUUID(),
-            })),
+          const [hydratedSavedPlaces, hydratedItinerarySelection] =
+            await Promise.all([
+              refreshGooglePlaceImages(normalizedSavedPlaces),
+              refreshGooglePlaceImages(normalizedItinerarySelection),
+            ]);
+          const nextGenerated = generateItineraryResult(
+            hydratedItinerarySelection,
           );
 
-          setItineraryPlaces(normalizedItinerarySelection);
+          setSavedPlaces(hydratedSavedPlaces);
 
-          setGeneratedItinerary(
-            generateItineraryResult(normalizedItinerarySelection),
+          setItineraryPlaces(hydratedItinerarySelection);
+
+          setGeneratedItinerary(nextGenerated);
+
+          void setDoc(
+            doc(db, "savedPlaces", user.uid),
+            {
+              saved: stripUndefined(hydratedSavedPlaces),
+              itinerarySelection: stripUndefined(hydratedItinerarySelection),
+              generatedItinerary: stripUndefined(nextGenerated),
+            },
+            { merge: true },
           );
         } else {
           setSavedPlaces([]);

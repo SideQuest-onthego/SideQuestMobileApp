@@ -39,15 +39,19 @@ export default function PlaceCard({
         </Text>
 
         <View style={styles.imageWrap}>
-          <Image
-            source={{
-              uri:
-                item.links?.imageUrl ??
-                "https://picsum.photos/seed/sidequest/800/500",
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          {item.links?.imageUrl ? (
+            <Image
+              source={{ uri: item.links.imageUrl }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.image, styles.imagePlaceholder]}>
+              <Text style={styles.imagePlaceholderText}>
+                Google photo unavailable
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoRow}>
@@ -131,6 +135,18 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
+  },
+
+  imagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D7E9E4",
+  },
+
+  imagePlaceholderText: {
+    color: "#34524C",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   infoRow: {

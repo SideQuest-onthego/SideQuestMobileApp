@@ -1,5 +1,6 @@
-import React from "react";
-import { View, Text, StyleSheet, Image, Pressable } from "react-native";
+import { Image } from "expo-image";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import { useSavedPlaces } from "../context/SavedPlacesContext";
 import { MAX_ITINERARY_PLACES } from "@/services/itineraryEngine";
@@ -19,18 +20,35 @@ export default function SavedPlaceCard({
 }: SavedPlaceCardProps) {
 
   const { itineraryPlaces } = useSavedPlaces();
+  const [imageFailed, setImageFailed] = useState(false);
 
   const isAdded = itineraryPlaces.some(p => p.id === item.id);
   const isItineraryFull = itineraryPlaces.length >= MAX_ITINERARY_PLACES;
+  const imageUrl = item.links?.imageUrl;
+
+  useEffect(() => {
+    setImageFailed(false);
+  }, [imageUrl]);
 
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
       {/* Left: Image */}
-      {item.links?.imageUrl ? (
-        <Image source={{ uri: item.links.imageUrl }} style={styles.image} />
+      {imageUrl && !imageFailed ? (
+        <Image
+          source={{ uri: imageUrl }}
+          style={styles.image}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          onError={() => {
+            console.warn(`Failed to render saved place photo for ${item.id}`);
+            setImageFailed(true);
+          }}
+        />
       ) : (
         <View style={[styles.image, styles.imagePlaceholder]}>
-          <Text style={styles.imagePlaceholderText}>No Image</Text>
+          <Text style={styles.imagePlaceholderText}>
+            Google photo unavailable
+          </Text>
         </View>
       )}
 
