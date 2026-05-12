@@ -12,9 +12,16 @@ const nearbyPlacesCache = new Map<
   string,
   { expiresAt: number; places: ActivityModel[] }
 >();
+const placePhotoUrlCache = new Map<string, string | undefined>();
 
 type NearbySearchResponse = {
   places?: GooglePlace[];
+};
+
+type PlaceDetailsResponse = {
+  photos?: {
+    name: string;
+  }[];
 };
 
 export type NearbyPlacesPage = {
@@ -101,7 +108,41 @@ function googleTypeToActivityType(
 function getPhotoUrl(photoName?: string) {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!photoName || !apiKey) return undefined;
-  return `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=900&key=${apiKey}`;
+  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&maxHeightPx=900&key=${apiKey}`;
+}
+
+export async function fetchGooglePlacePhotoUrl(
+  googlePlaceId: string,
+): Promise<string | undefined> {
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return undefined;
+
+  if (placePhotoUrlCache.has(googlePlaceId)) {
+    return placePhotoUrlCache.get(googlePlaceId);
+  }
+
+  const response = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(googlePlaceId)}`,
+    {
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "photos",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Google Place Details request failed: ${response.status} ${errorBody}`,
+    );
+  }
+
+  const json = (await response.json()) as PlaceDetailsResponse;
+  const photoUrl = getPhotoUrl(json.photos?.[0]?.name);
+  placePhotoUrlCache.set(googlePlaceId, photoUrl);
+
+  return photoUrl;
 }
 
 function metersToLatitudeDegrees(meters: number) {
@@ -178,12 +219,19 @@ function parseLocationDetails(place: GooglePlace) {
   };
 }
 
-function placeToActivity(place: GooglePlace): ActivityModel | null {
+async function placeToActivity(place: GooglePlace): Promise<ActivityModel | null> {
   if (!place.id || !place.location) return null;
 
   const name = place.displayName?.text ?? "Unknown place";
   const firstType = place.primaryType ?? place.types?.[0];
-  const imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  let imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  try {
+    if (!imageUrl) {
+      imageUrl = await fetchGooglePlacePhotoUrl(place.id);
+    }
+  } catch (error) {
+    console.warn(`Failed to load Google photo for ${place.id}:`, error);
+  }
   const parsedLocation = parseLocationDetails(place);
 
   return {
@@ -294,9 +342,12 @@ export async function fetchNearbyPlacesPage(
       }
 
       const json = (await response.json()) as NearbySearchResponse;
-      const places = (json.places ?? [])
-        .map(placeToActivity)
-        .filter((place): place is ActivityModel => Boolean(place));
+      const mappedPlaces = await Promise.all(
+        (json.places ?? []).map(placeToActivity),
+      );
+      const places = mappedPlaces.filter((place): place is ActivityModel =>
+        Boolean(place),
+      );
 
       nearbyPlacesCache.set(cacheKey, {
         expiresAt: Date.now() + CACHE_TTL_MS,

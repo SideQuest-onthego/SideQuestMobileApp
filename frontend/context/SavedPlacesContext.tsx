@@ -12,11 +12,14 @@ import type { ItineraryResult } from "@/types/itinerary";
 import {
   MAX_ITINERARY_PLACES,
   MIN_ITINERARY_PLACES,
+  canAddPlaceWithinBudget,
   generateItineraryResult,
 } from "@/services/itineraryEngine";
+import { fetchGooglePlacePhotoUrl } from "@/services/googlePlaces";
+import { DEFAULT_PREFERENCES } from "@/services/userPreferences";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 
 type SavedPlacesContextType = {
@@ -27,10 +30,12 @@ type SavedPlacesContextType = {
   addPlace: (place: ActivityModel) => void;
   removePlace: (placeId: string) => void;
 
-  addToItinerary: (place: ActivityModel) => void;
+  addToItinerary: (place: ActivityModel) => AddToItineraryResult;
   removeFromItinerary: (placeId: string) => void;
   generateItinerary: () => void;
 };
+
+type AddToItineraryResult = "added" | "duplicate" | "full" | "over-budget";
 
 const SavedPlacesContext = createContext<
   SavedPlacesContextType | undefined
@@ -53,6 +58,36 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+function getGooglePlaceId(place: ActivityModel) {
+  return place.source?.googlePlaceId || place.id;
+}
+
+async function refreshGooglePlaceImages(places: ActivityModel[]) {
+  return Promise.all(
+    places.map(async (place) => {
+      if (place.source?.provider !== "google_places") {
+        return place;
+      }
+
+      try {
+        const imageUrl = await fetchGooglePlacePhotoUrl(getGooglePlaceId(place));
+        if (!imageUrl) return place;
+
+        return {
+          ...place,
+          links: {
+            ...place.links,
+            imageUrl,
+          },
+        };
+      } catch (error) {
+        console.warn(`Failed to load Google photo for ${place.id}:`, error);
+        return place;
+      }
+    }),
+  );
+}
+
 export function useSavedPlaces() {
   const context = useContext(SavedPlacesContext);
   if (!context)
@@ -65,6 +100,9 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [generatedItinerary, setGeneratedItinerary] =
     useState<ItineraryResult | null>(null);
+  const [itineraryBudget, setItineraryBudget] = useState(
+    DEFAULT_PREFERENCES.budget,
+  );
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   // auth listener
@@ -72,6 +110,31 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, setUser);
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(
+      doc(db, "userPreferences", user.uid),
+      (snapshot) => {
+        const data = snapshot.data();
+        setItineraryBudget(
+          typeof data?.budget === "number" && data.budget > 0
+            ? data.budget
+            : DEFAULT_PREFERENCES.budget,
+        );
+      },
+      (error) => {
+        console.error("Failed to load itinerary budget:", error);
+        setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
 
   // load saved places
   useEffect(() => {
@@ -92,22 +155,37 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
           const itinerarySelection: ActivityModel[] = (
             snapshot.data().itinerarySelection || []
           ).slice(0, MAX_ITINERARY_PLACES);
+          const normalizedSavedPlaces = savedData.map((p) => ({
+            ...p,
+            id: p.id || crypto.randomUUID(),
+          }));
           const normalizedItinerarySelection = itinerarySelection.map((p) => ({
             ...p,
             id: p.id || crypto.randomUUID(),
           }));
-
-          setSavedPlaces(
-            savedData.map((p) => ({
-              ...p,
-              id: p.id || crypto.randomUUID(),
-            })),
+          const [hydratedSavedPlaces, hydratedItinerarySelection] =
+            await Promise.all([
+              refreshGooglePlaceImages(normalizedSavedPlaces),
+              refreshGooglePlaceImages(normalizedItinerarySelection),
+            ]);
+          const nextGenerated = generateItineraryResult(
+            hydratedItinerarySelection,
           );
 
-          setItineraryPlaces(normalizedItinerarySelection);
+          setSavedPlaces(hydratedSavedPlaces);
 
-          setGeneratedItinerary(
-            generateItineraryResult(normalizedItinerarySelection),
+          setItineraryPlaces(hydratedItinerarySelection);
+
+          setGeneratedItinerary(nextGenerated);
+
+          void setDoc(
+            doc(db, "savedPlaces", user.uid),
+            {
+              saved: stripUndefined(hydratedSavedPlaces),
+              itinerarySelection: stripUndefined(hydratedItinerarySelection),
+              generatedItinerary: stripUndefined(nextGenerated),
+            },
+            { merge: true },
           );
         } else {
           setSavedPlaces([]);
@@ -219,9 +297,16 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   // itinerary logic
   const addToItinerary = (place: ActivityModel) => {
+    if (itineraryPlaces.some((p) => p.id === place.id)) return "duplicate";
+    if (itineraryPlaces.length >= MAX_ITINERARY_PLACES) return "full";
+    if (!canAddPlaceWithinBudget(itineraryPlaces, place, itineraryBudget)) {
+      return "over-budget";
+    }
+
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
       if (prev.length >= MAX_ITINERARY_PLACES) return prev;
+      if (!canAddPlaceWithinBudget(prev, place, itineraryBudget)) return prev;
 
       const updated = [...prev, place];
       const nextGenerated = generateItineraryResult(updated);
@@ -232,6 +317,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       persistItineraryState(updated, nextGenerated);
       return updated;
     });
+
+    return "added";
   };
 
   const removeFromItinerary = (placeId: string) => {

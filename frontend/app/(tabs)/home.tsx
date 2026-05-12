@@ -2,11 +2,9 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import SwipeDeck from "../../components/SwipeDeck";
 import { useLocation } from "../../context/LocationContext";
-import { places } from "../../data/places";
 import type { ActivityModel } from "../../types/sidequest-models";
 import { fetchNearbyPlacesPage } from "../../services/googlePlaces";
 import {
-  DEFAULT_PREFERENCES,
   loadUserSearchPreferences,
 } from "../../services/userPreferences";
 import { rankPlacesByPreferences } from "../../services/placeRanking";
@@ -17,7 +15,7 @@ const MILES_TO_METERS = 1609.34;
 
 export default function HomeScreen() {
   const { userLocation, radiusMiles } = useLocation();
-  const [data, setData] = useState<ActivityModel[]>(places);
+  const [data, setData] = useState<ActivityModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(0);
@@ -51,19 +49,19 @@ export default function HomeScreen() {
           setData(rankPlacesByPreferences(firstPage.places, preferences));
           setNextCursor(firstPage.nextCursor);
         } else {
-          setData(rankPlacesByPreferences(places, preferences));
+          setData([]);
           setNextCursor(null);
           setError(
             userLocation
-              ? "No live places matched this location and distance, so showing fallback recommendations."
-              : "No live places matched the default area, so showing fallback recommendations.",
+              ? "No Google Places matched this location and distance."
+              : "No Google Places matched the default area.",
           );
         }
       } catch (e) {
         if (!mounted) return;
         const message = e instanceof Error ? e.message : "Failed to load places";
         setError(message);
-        setData(rankPlacesByPreferences(places, DEFAULT_PREFERENCES));
+        setData([]);
         setNextCursor(null);
       } finally {
         if (mounted) setLoading(false);

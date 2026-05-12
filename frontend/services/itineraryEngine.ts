@@ -47,10 +47,29 @@ function formatClock(minutesSinceMidnight: number) {
   return `${hour12}:${minuteLabel} ${suffix}`;
 }
 
-function getAveragePrice(place: ActivityModel) {
+export function getItineraryPlaceEstimatedCost(place: ActivityModel) {
   const min = place.estimatedCost?.min ?? 0;
   const max = place.estimatedCost?.max ?? 0;
   return Math.round((min + max) / 2);
+}
+
+export function getItineraryEstimatedCost(places: ActivityModel[]) {
+  return places.reduce(
+    (total, place) => total + getItineraryPlaceEstimatedCost(place),
+    0,
+  );
+}
+
+export function canAddPlaceWithinBudget(
+  currentPlaces: ActivityModel[],
+  place: ActivityModel,
+  budget: number,
+) {
+  if (budget <= 0) {
+    return true;
+  }
+
+  return getItineraryEstimatedCost([...currentPlaces, place]) <= budget;
 }
 
 function clampDuration(place: ActivityModel) {
@@ -334,7 +353,7 @@ export function generateItineraryResult(
 
     totalTravelMinutes += travelTimeMins;
     totalActivityMinutes += durationMins;
-    totalEstimatedCost += getAveragePrice(place);
+    totalEstimatedCost += getItineraryPlaceEstimatedCost(place);
 
     return {
       order: index + 1,
