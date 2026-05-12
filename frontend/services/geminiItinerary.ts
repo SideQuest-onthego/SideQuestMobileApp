@@ -142,7 +142,7 @@ Respond with a JSON object in this exact format (no markdown, just raw JSON):
       "order": 1,
       "startTime": "10:00 AM",
       "endTime": "11:30 AM",
-      "notes": "Optional brief note about this stop"
+      "notes": "One concrete activity to do at this specific stop"
     }
   ],
   "totalDurationMins": 300,
@@ -152,6 +152,19 @@ Respond with a JSON object in this exact format (no markdown, just raw JSON):
 
 Place IDs for reference:
 ${places.map((p) => `- ${p.name}: "${p.id}"`).join("\n")}
+
+CRITICAL RULES FOR THE "notes" FIELD - this is what the user reads under "Suggestion" for each stop:
+- The "notes" field is REQUIRED for every stop. Never leave it blank, null, or generic.
+- Suggest ONE specific, concrete thing the visitor should actually do, see, eat, or experience at THAT specific place. Be vivid and actionable.
+- DO NOT restate the place's name, address, or category. The user already sees the name above the suggestion.
+- DO NOT write filler like "Visit this restaurant", "Explore the museum", "Enjoy the park", or "Stop by here".
+- Tailor the suggestion to the place's specific category and tags:
+  - Restaurant/cafe/bar → name a dish style, drink, or vibe to seek out (e.g. "Order the chef's tasting menu and ask for the wine pairing").
+  - Museum/gallery → name an exhibit type, wing, or angle (e.g. "Spend most of your time in the modern wing and skip the audio guide").
+  - Park/garden/trail → name a feature, path, or moment (e.g. "Walk the perimeter loop and stop at the overlook for sunset photos").
+  - Landmark/monument → name a specific viewpoint, photo angle, or detail to look for.
+  - Shop/market → suggest a category of thing to look for (e.g. "Hunt for a locally-made ceramic you can pack home").
+- Length: 12-25 words. Conversational but specific.
 
 Important: Use the exact place IDs provided. Include all places in the itinerary.`;
 
