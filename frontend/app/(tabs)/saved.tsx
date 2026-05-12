@@ -1,5 +1,5 @@
-
 import React, { useState, useEffect } from "react";
+import { Ionicons } from "@expo/vector-icons";
 import {
   View,
   FlatList,
@@ -8,7 +8,6 @@ import {
   Pressable,
   TextInput,
   SafeAreaView,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSavedPlaces } from "../../context/SavedPlacesContext";
@@ -25,15 +24,17 @@ function getAveragePrice(min?: number, max?: number) {
 export default function SavedScreen() {
   const router = useRouter();
   const { savedPlaces, removePlace, addToItinerary } = useSavedPlaces();
-  const overBudgetMessage = "Unable to add place to itinerary, too expensive";
 
-  const [selectedFilter, setSelectedFilter] =
-    useState<"all" | "free" | "paid">("all");
+  const [selectedFilter, setSelectedFilter] = useState<"all" | "free" | "paid">(
+    "all",
+  );
 
-  const [selectedSort, setSelectedSort] =
-    useState<"default" | "az" | "lowToHigh" | "highToLow">("default");
+  const [selectedSort, setSelectedSort] = useState<
+    "default" | "az" | "lowToHigh" | "highToLow"
+  >("default");
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
 
   useEffect(() => {
     if (
@@ -55,7 +56,7 @@ export default function SavedScreen() {
       return true;
     })
     .filter((place) =>
-      place.name.toLowerCase().includes(searchQuery.toLowerCase())
+      place.name.toLowerCase().includes(searchQuery.toLowerCase()),
     );
 
   const sortedPlaces = [...filteredPlaces].sort((a, b) => {
@@ -78,171 +79,188 @@ export default function SavedScreen() {
     return 0;
   });
 
-  const handleAddToItinerary = (place: (typeof savedPlaces)[number]) => {
-    const result = addToItinerary(place);
-
-    if (result === "over-budget") {
-      console.log(overBudgetMessage);
-      Alert.alert("Budget exceeded", overBudgetMessage);
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <FlatList
         data={sortedPlaces}
         keyExtractor={(item) => item.id}
-
         ListHeaderComponent={
           <View style={styles.header}>
-            {/* SEARCH BAR */}
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search saved places..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-
-            {/* FILTER BUTTONS */}
-            <View style={styles.filterRow}>
-              <Pressable
-                style={[
-                  styles.filterButton,
-                  selectedFilter === "all" && styles.activeFilterButton,
-                ]}
-                onPress={() => setSelectedFilter("all")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    selectedFilter === "all" && styles.activeFilterText,
-                  ]}
-                >
-                  All
-                </Text>
-              </Pressable>
+            {/* SEARCH BAR WITH FILTER BUTTON */}
+            <View style={styles.searchRow}>
+              <Ionicons
+                name="search"
+                size={20}
+                color="#888"
+                style={styles.searchIcon}
+              />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search saved places..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
 
               <Pressable
-                style={[
-                  styles.filterButton,
-                  selectedFilter === "free" && styles.activeFilterButton,
-                ]}
-                onPress={() => setSelectedFilter("free")}
+                style={styles.filterIconButton}
+                onPress={() => setFilterMenuOpen(!filterMenuOpen)}
               >
-                <Text
-                  style={[
-                    styles.filterText,
-                    selectedFilter === "free" && styles.activeFilterText,
-                  ]}
-                >
-                  Free
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[
-                  styles.filterButton,
-                  selectedFilter === "paid" && styles.activeFilterButton,
-                ]}
-                onPress={() => setSelectedFilter("paid")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    selectedFilter === "paid" && styles.activeFilterText,
-                  ]}
-                >
-                  Paid
-                </Text>
+                <Ionicons
+                  name={filterMenuOpen ? "close" : "menu"}
+                  size={24}
+                  color="black"
+                />
               </Pressable>
             </View>
 
-            {/* SORT BUTTONS */}
-            <View style={styles.sortRow}>
-              <Pressable
-                style={[
-                  styles.sortButton,
-                  selectedSort === "default" && styles.activeSortButton,
-                ]}
-                onPress={() => setSelectedSort("default")}
-              >
-                <Text
-                  style={[
-                    styles.sortText,
-                    selectedSort === "default" && styles.activeSortText,
-                  ]}
-                >
-                  Default
-                </Text>
-              </Pressable>
+            {/* COLLAPSIBLE FILTER PANEL */}
+            {filterMenuOpen && (
+              <View style={styles.filterPanel}>
+                <Text style={styles.sectionLabel}>Show:</Text>
 
-              <Pressable
-                style={[
-                  styles.sortButton,
-                  selectedSort === "az" && styles.activeSortButton,
-                ]}
-                onPress={() => setSelectedSort("az")}
-              >
-                <Text
-                  style={[
-                    styles.sortText,
-                    selectedSort === "az" && styles.activeSortText,
-                  ]}
-                >
-                  A-Z
-                </Text>
-              </Pressable>
+                {/* FILTER BUTTONS */}
+                <View style={styles.filterRow}>
+                  <Pressable
+                    style={[
+                      styles.filterButton,
+                      selectedFilter === "all" && styles.activeFilterButton,
+                    ]}
+                    onPress={() => setSelectedFilter("all")}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        selectedFilter === "all" && styles.activeFilterText,
+                      ]}
+                    >
+                      All
+                    </Text>
+                  </Pressable>
 
-              {selectedFilter !== "free" && (
-                <>
+                  <Pressable
+                    style={[
+                      styles.filterButton,
+                      selectedFilter === "free" && styles.activeFilterButton,
+                    ]}
+                    onPress={() => setSelectedFilter("free")}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        selectedFilter === "free" && styles.activeFilterText,
+                      ]}
+                    >
+                      Free
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    style={[
+                      styles.filterButton,
+                      selectedFilter === "paid" && styles.activeFilterButton,
+                    ]}
+                    onPress={() => setSelectedFilter("paid")}
+                  >
+                    <Text
+                      style={[
+                        styles.filterText,
+                        selectedFilter === "paid" && styles.activeFilterText,
+                      ]}
+                    >
+                      Paid
+                    </Text>
+                  </Pressable>
+                </View>
+
+                <Text style={styles.sectionLabel}>Sort by:</Text>
+
+                {/* SORT BUTTONS */}
+                <View style={styles.sortRow}>
                   <Pressable
                     style={[
                       styles.sortButton,
-                      selectedSort === "lowToHigh" &&
-                        styles.activeSortButton,
+                      selectedSort === "default" && styles.activeSortButton,
                     ]}
-                    onPress={() => setSelectedSort("lowToHigh")}
+                    onPress={() => setSelectedSort("default")}
                   >
                     <Text
                       style={[
                         styles.sortText,
-                        selectedSort === "lowToHigh" &&
-                          styles.activeSortText,
+                        selectedSort === "default" && styles.activeSortText,
                       ]}
                     >
-                      $Low-High
+                      Default
                     </Text>
                   </Pressable>
 
                   <Pressable
                     style={[
                       styles.sortButton,
-                      selectedSort === "highToLow" &&
-                        styles.activeSortButton,
+                      selectedSort === "az" && styles.activeSortButton,
                     ]}
-                    onPress={() => setSelectedSort("highToLow")}
+                    onPress={() => setSelectedSort("az")}
                   >
                     <Text
                       style={[
                         styles.sortText,
-                        selectedSort === "highToLow" &&
-                          styles.activeSortText,
+                        selectedSort === "az" && styles.activeSortText,
                       ]}
                     >
-                      $High-Low
+                      A-Z
                     </Text>
                   </Pressable>
-                </>
-              )}
-            </View>
+
+                  {selectedFilter !== "free" && (
+                    <>
+                      <Pressable
+                        style={[
+                          styles.sortButton,
+                          selectedSort === "lowToHigh" &&
+                            styles.activeSortButton,
+                        ]}
+                        onPress={() => setSelectedSort("lowToHigh")}
+                      >
+                        <Text
+                          style={[
+                            styles.sortText,
+                            selectedSort === "lowToHigh" &&
+                              styles.activeSortText,
+                          ]}
+                        >
+                          $Low-High
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        style={[
+                          styles.sortButton,
+                          selectedSort === "highToLow" &&
+                            styles.activeSortButton,
+                        ]}
+                        onPress={() => setSelectedSort("highToLow")}
+                      >
+                        <Text
+                          style={[
+                            styles.sortText,
+                            selectedSort === "highToLow" &&
+                              styles.activeSortText,
+                          ]}
+                        >
+                          $High-Low
+                        </Text>
+                      </Pressable>
+                    </>
+                  )}
+                </View>
+              </View>
+            )}
           </View>
         }
-
         renderItem={({ item }) => (
           <SavedPlaceCard
             item={item}
             onRemove={removePlace}
-            onAddToItinerary={handleAddToItinerary}
+            onAddToItinerary={addToItinerary}
             onPress={(place) =>
               router.push({
                 pathname: "/itinerary/[placeId]",
@@ -251,19 +269,17 @@ export default function SavedScreen() {
             }
           />
         )}
-
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-
         ListEmptyComponent={
           <Text style={styles.emptyText}>
             {searchQuery
               ? "No places match your search."
               : selectedFilter === "free"
-              ? "No free places saved yet."
-              : selectedFilter === "paid"
-              ? "No paid places saved yet."
-              : "No saved places yet."}
+                ? "No free places saved yet."
+                : selectedFilter === "paid"
+                  ? "No paid places saved yet."
+                  : "No saved places yet."}
           </Text>
         }
       />
@@ -283,15 +299,9 @@ const styles = StyleSheet.create({
   },
 
   searchInput: {
-    width: "99%",
-    alignSelf: "center",
-    backgroundColor: "#fff",
+    flex: 1,
     padding: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#000",
     fontSize: 16,
-    marginBottom: 12,
   },
 
   filterRow: {
@@ -364,5 +374,44 @@ const styles = StyleSheet.create({
     marginTop: 30,
     fontSize: 16,
     color: "#555",
+  },
+
+  filterPanel: {
+    width: "98%",
+    alignSelf: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#000000",
+    borderRadius: 28,
+    padding: 12,
+    marginBottom: 14,
+  },
+
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    marginBottom: 8,
+    color: "#000000",
+  },
+
+  searchRow: {
+    width: "98%",
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#000000",
+    borderRadius: 28,
+    marginBottom: 14,
+  },
+
+  filterIconButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+
+  searchIcon: {
+    marginLeft: 12,
   },
 });

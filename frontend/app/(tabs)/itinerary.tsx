@@ -768,20 +768,22 @@ export default function ItineraryScreen() {
       >
         <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
         <Text style={styles.aiButtonText}>
-          {isGeneratingAi ? "Generating..." : "Generate route with Gemini"}
+          {isGeneratingAi ? "Generating..." : "Generate with Gemini"}
         </Text>
       </Pressable>
 
       <View style={styles.actionRow}>
         <Pressable style={styles.generateButton} onPress={generateItinerary}>
-          <Text style={styles.generateButtonText}>Regenerate itinerary</Text>
+          <IconSymbol size={18} name="arrow.clockwise" color="#FFFFFF" />
+          <Text style={styles.generateButtonText}>Regenerate</Text>
         </Pressable>
 
         <Pressable
           style={styles.secondaryButton}
           onPress={() => router.navigate("/saved")}
         >
-          <Text style={styles.secondaryButtonText}>Edit selections</Text>
+          <IconSymbol size={18} name="pencil" color="#102C26" />
+          <Text style={styles.secondaryButtonText}>Edit</Text>
         </Pressable>
       </View>
 
@@ -1017,7 +1019,7 @@ const styles = StyleSheet.create({
   },
   startTimeCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: "black",
     padding: 16,
@@ -1089,7 +1091,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: "black",
     padding: 16,
@@ -1138,8 +1140,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,
     backgroundColor: "#102C26",
-    borderRadius: 18,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 15,
     marginBottom: 12,
     borderWidth: 2,
     borderColor: "#102C26",
@@ -1169,16 +1171,20 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     marginBottom: 24,
   },
   generateButton: {
     flex: 1,
-    backgroundColor: "#102C26",
-    borderRadius: 18,
-    paddingVertical: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#102C26",
+    borderRadius: 20,
+    paddingVertical: 15,
+    borderWidth: 2,
+    borderColor: "#102C26",
   },
   generateButtonText: {
     fontSize: 16,
@@ -1187,11 +1193,13 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    paddingVertical: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 15,
     borderWidth: 2,
     borderColor: "#102C26",
   },
@@ -1542,7 +1550,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: "#102C26",
     padding: 12,
@@ -1672,7 +1680,7 @@ const styles = StyleSheet.create({
   },
   mapCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: "black",
     overflow: "hidden",

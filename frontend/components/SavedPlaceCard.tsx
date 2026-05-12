@@ -1,6 +1,5 @@
-import { Image } from "expo-image";
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import { useSavedPlaces } from "../context/SavedPlacesContext";
 import { MAX_ITINERARY_PLACES } from "@/services/itineraryEngine";
@@ -18,39 +17,27 @@ export default function SavedPlaceCard({
   onPress,
   onAddToItinerary,
 }: SavedPlaceCardProps) {
-
   const { itineraryPlaces } = useSavedPlaces();
-  const [imageFailed, setImageFailed] = useState(false);
 
-  const isAdded = itineraryPlaces.some(p => p.id === item.id);
+  const isAdded = itineraryPlaces.some((p) => p.id === item.id);
   const isItineraryFull = itineraryPlaces.length >= MAX_ITINERARY_PLACES;
-  const imageUrl = item.links?.imageUrl;
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [imageUrl]);
 
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
       {/* Left: Image */}
-      {imageUrl && !imageFailed ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={styles.image}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          onError={() => {
-            console.warn(`Failed to render saved place photo for ${item.id}`);
-            setImageFailed(true);
-          }}
-        />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder]}>
-          <Text style={styles.imagePlaceholderText}>
-            Google photo unavailable
-          </Text>
-        </View>
-      )}
+      <View style={styles.imageContainer}>
+        {item.links?.imageUrl ? (
+          <Image
+            source={{ uri: item.links.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.image, styles.imagePlaceholder]}>
+            <Text style={styles.imagePlaceholderText}>No Image</Text>
+          </View>
+        )}
+      </View>
 
       {/* Middle: Info */}
       <View style={styles.infoContainer}>
@@ -63,7 +50,6 @@ export default function SavedPlaceCard({
 
         {/* Buttons */}
         <View style={styles.buttonRow}>
-
           {/* Add to Itinerary button */}
           {!isAdded && !isItineraryFull && (
             <Pressable
@@ -99,31 +85,39 @@ export default function SavedPlaceCard({
 
 const styles = StyleSheet.create({
   card: {
-  flexDirection: "row",
-  backgroundColor: "#FFFFFF",
-  borderWidth: 2,
-  borderColor: "#000000",
-  borderRadius: 12,
-  padding: 16,
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#000000",
+    borderRadius: 28,
+    padding: 16,
+    alignItems: "center",
 
-  
-  width: "92%",
-  alignSelf: "center",
+    width: "92%",
+    alignSelf: "center",
 
-  marginBottom: 14,
+    marginBottom: 14,
 
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-  elevation: 3,
-},
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
 
-  image: {
+  imageContainer: {
     width: 100,
     height: 100,
-    borderRadius: 8,
+    borderRadius: 20,
     marginRight: 12,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  image: {
+    width: "100%",
+    height: "100%",
   },
 
   imagePlaceholder: {
@@ -164,7 +158,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 20,
   },
 
   removeText: {
@@ -176,7 +170,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 20,
   },
 
   addText: {
@@ -188,7 +182,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#D8E2DC",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 20,
   },
 
   fullBadgeText: {

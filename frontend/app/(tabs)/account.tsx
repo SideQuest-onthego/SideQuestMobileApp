@@ -308,7 +308,9 @@ export default function AccountScreen() {
     }
   }
 
-  function handleSelectPresetLocation(option: (typeof LOCATION_OPTIONS)[number]) {
+  function handleSelectPresetLocation(
+    option: (typeof LOCATION_OPTIONS)[number],
+  ) {
     setUserLocation(option.coords);
     setSelectedLocationLabel(option.label);
   }
@@ -358,7 +360,9 @@ export default function AccountScreen() {
           {loadingGPS ? (
             <ActivityIndicator color="#102C26" size="small" />
           ) : (
-            <Text style={styles.locationActionText}>Use My Current Location</Text>
+            <Text style={styles.locationActionText}>
+              Use My Current Location
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -602,7 +606,7 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderRadius: 12,
+    borderRadius: 28,
     padding: 16,
     marginBottom: 14,
   },
