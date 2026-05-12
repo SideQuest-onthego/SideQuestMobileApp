@@ -20,7 +20,13 @@ import {
 } from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Image,
   Pressable,
@@ -238,13 +244,7 @@ function TransitDirections({
     return () => {
       isCurrent = false;
     };
-  }, [
-    fromPlace,
-    isExpanded,
-    selectedMode,
-    selectedRoute,
-    toPlace,
-  ]);
+  }, [fromPlace, isExpanded, selectedMode, selectedRoute, toPlace]);
 
   return (
     <View style={styles.transitContainer}>
@@ -349,8 +349,8 @@ function TransitDirections({
                         ? isWalkMode
                           ? `Walk from ${fromPlace.name} to ${toPlace.name} in ${selectedRoute.durationText}.`
                           : selectedRoute.summary
-                        : errorMessage ??
-                          "No live route found for this option."}
+                        : (errorMessage ??
+                          "No live route found for this option.")}
                   </Text>
 
                   {selectedRoute?.steps.length && !isWalkMode ? (
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#DBFEF7",
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
     paddingTop: 24,
     paddingBottom: 36,
   },

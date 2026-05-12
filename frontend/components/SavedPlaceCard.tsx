@@ -11,6 +11,12 @@ type SavedPlaceCardProps = {
   onAddToItinerary?: (item: ActivityModel) => void;
 };
 
+function formatPrice(min: number, max: number) {
+  if (min === 0 && max === 0) return "Free";
+  if (min === max) return `$${min}`;
+  return `$${min}-$${max}`;
+}
+
 export default function SavedPlaceCard({
   item,
   onRemove,
@@ -43,8 +49,11 @@ export default function SavedPlaceCard({
       <View style={styles.infoContainer}>
         <View>
           <Text style={styles.title}>{item.name}</Text>
-          <Text style={styles.description}>
-            {item.location.address}, {item.location.city}
+          <Text style={styles.description} numberOfLines={1}>
+            {item.location.city}, {item.location.state}
+          </Text>
+          <Text style={styles.metaText}>
+            {formatPrice(item.estimatedCost.min, item.estimatedCost.max)}
           </Text>
         </View>
 
@@ -188,5 +197,11 @@ const styles = StyleSheet.create({
   fullBadgeText: {
     color: "#102C26",
     fontWeight: "600",
+  },
+  metaText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#102C26",
+    marginTop: 6,
   },
 });
