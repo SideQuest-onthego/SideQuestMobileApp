@@ -1,6 +1,8 @@
+import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -11,6 +13,10 @@ import {
 
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
 import { formatCategoryLabel } from "@/services/placeDisplay";
+import {
+  fetchPlaceInsights,
+  type PlaceInsights,
+} from "@/services/geminiPlaceInsights";
 
 // ITINERARY PAGE PER PLACE
 
@@ -37,6 +43,40 @@ export default function ItineraryDetailScreen() {
     () => savedPlaces.find((place) => place.id === placeId) ?? null, // returns POI info via placeId
     [placeId, savedPlaces],
   );
+
+  const [insights, setInsights] = useState<PlaceInsights | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsError, setInsightsError] = useState(false);
+
+  // Fire Gemini insights request only after the user opens this place.
+  useEffect(() => {
+    if (!selectedPlace) return;
+
+    let cancelled = false;
+    setInsights(null);
+    setInsightsError(false);
+    setInsightsLoading(true);
+
+    fetchPlaceInsights(selectedPlace)
+      .then((result) => {
+        if (cancelled) return;
+        if (result) {
+          setInsights(result);
+        } else {
+          setInsightsError(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setInsightsError(true);
+      })
+      .finally(() => {
+        if (!cancelled) setInsightsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPlace?.id]);
 
   if (!selectedPlace) {
     // if doesn't exist or function can't find POI
@@ -95,7 +135,83 @@ export default function ItineraryDetailScreen() {
           </Text>
         </View>
       </View>
+
+      <View style={styles.insightsCard}>
+        <View style={styles.insightsHeader}>
+          <View style={styles.insightsHeaderIcon}>
+            <Ionicons name="sparkles" size={18} color="#1F5C4A" />
+          </View>
+          <Text style={styles.insightsTitle}>Gemini Insights</Text>
+        </View>
+
+        {insightsLoading && (
+          <View style={styles.insightsStatus}>
+            <ActivityIndicator size="small" color="#1F5C4A" />
+            <Text style={styles.insightsStatusText}>
+              Generating insights for {selectedPlace.name}…
+            </Text>
+          </View>
+        )}
+
+        {!insightsLoading && insightsError && (
+          <Text style={styles.insightsStatusText}>
+            Insights are unavailable for this place right now.
+          </Text>
+        )}
+
+        {!insightsLoading && !insightsError && insights && (
+          <>
+            <Text style={styles.insightsSummary}>{insights.summary}</Text>
+
+            <View style={styles.insightsList}>
+              <InsightsRow
+                icon="time-outline"
+                title="Best Time to Visit"
+                description={insights.bestTimeToVisit}
+              />
+              <InsightsRow
+                icon="leaf-outline"
+                title="Good For"
+                description={insights.goodFor.join(", ")}
+              />
+              <InsightsRow
+                icon="location-outline"
+                title="Nearby Suggestions"
+                description={insights.nearbySuggestions.join(", ")}
+              />
+              <InsightsRow
+                icon="heart-outline"
+                title="Vibe"
+                description={insights.vibe.join(", ")}
+                isLast
+              />
+            </View>
+          </>
+        )}
+      </View>
     </ScrollView>
+  );
+}
+
+type InsightsRowProps = {
+  icon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  description: string;
+  isLast?: boolean;
+};
+
+function InsightsRow({ icon, title, description, isLast }: InsightsRowProps) {
+  return (
+    <View style={[styles.insightsRow, isLast && styles.insightsRowLast]}>
+      <View style={styles.insightsRowIcon}>
+        <Ionicons name={icon} size={18} color="#1F5C4A" />
+      </View>
+      <View style={styles.insightsRowCopy}>
+        <Text style={styles.insightsRowTitle}>{title}</Text>
+        <Text style={styles.insightsRowDescription}>{description}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#7CA59B" />
+    </View>
   );
 }
 
@@ -201,6 +317,84 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#27443E",
     lineHeight: 22,
+  },
+  insightsCard: {
+    width: "98%",
+    alignSelf: "center",
+    backgroundColor: "#EAF7F0",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#C8E2D5",
+    padding: 18,
+    gap: 14,
+  },
+  insightsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  insightsHeaderIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  insightsTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#102C26",
+    flex: 1,
+  },
+  insightsSummary: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: "#27443E",
+  },
+  insightsStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  insightsStatusText: {
+    fontSize: 14,
+    color: "#46655F",
+  },
+  insightsList: {
+    marginTop: 2,
+  },
+  insightsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "#C8E2D5",
+  },
+  insightsRowLast: {
+    borderBottomWidth: 0,
+  },
+  insightsRowIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#CDE9D9",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  insightsRowCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  insightsRowTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#102C26",
+  },
+  insightsRowDescription: {
+    fontSize: 14,
+    color: "#34524C",
+    lineHeight: 20,
   },
   emptyState: {
     flex: 1,
