@@ -76,7 +76,7 @@ export default function ItineraryDetailScreen() {
     return () => {
       cancelled = true;
     };
-  }, [selectedPlace?.id]);
+  }, [selectedPlace]);
 
   if (!selectedPlace) {
     // if doesn't exist or function can't find POI

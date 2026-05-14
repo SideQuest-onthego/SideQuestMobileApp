@@ -197,7 +197,10 @@ export default function MapScreen() {
       );
    }
 
+   // Keep react-native-maps out of the web path; it is native-only here.
+   // eslint-disable-next-line @typescript-eslint/no-require-imports
    const MapView = require("react-native-maps").default;
+   // eslint-disable-next-line @typescript-eslint/no-require-imports
    const { Polygon, Marker, Circle, Polyline } = require("react-native-maps");
 
    const defaultCenter = { latitude: 40.7128, longitude: -74.006 };

@@ -24,7 +24,6 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
@@ -565,7 +564,6 @@ function StartTimeCard({
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
   const {
     itineraryPlaces,
     generatedItinerary,

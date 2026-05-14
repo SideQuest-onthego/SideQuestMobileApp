@@ -234,6 +234,9 @@ export default function DietaryScreen() {
             </View>
 
             <Text style={styles.helper}>{selectionLabel}</Text>
+            {statusMessage ? (
+              <Text style={styles.statusMessage}>{statusMessage}</Text>
+            ) : null}
           </View>
 
           <TouchableOpacity
@@ -364,6 +367,12 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 12,
     color: "rgba(0,0,0,0.55)",
+    textAlign: "center",
+  },
+  statusMessage: {
+    marginTop: 8,
+    color: "#fb3d60",
+    fontWeight: "600",
     textAlign: "center",
   },
 });
