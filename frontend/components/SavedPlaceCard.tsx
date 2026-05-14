@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
 
   removeButton: {
-    backgroundColor: "#000",
+    backgroundColor: "#102C26",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
 
   addButton: {
-    backgroundColor: "#000",
+    backgroundColor: "#102C26",
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 20,

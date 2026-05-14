@@ -329,17 +329,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#000000",
+    borderColor: "#102C26",
   },
 
   activeFilterButton: {
-    backgroundColor: "#000000",
+    backgroundColor: "#102C26",
   },
 
   filterText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#000000",
+    color: "#374151",
   },
 
   activeFilterText: {
@@ -360,17 +360,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
-    borderColor: "#000000",
+    borderColor: "#102C26",
   },
 
   activeSortButton: {
-    backgroundColor: "#000000",
+    backgroundColor: "#102C26",
   },
 
   sortText: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#000000",
+    color: "#374151",
   },
 
   activeSortText: {
@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderColor: "#000000",
+    borderColor: "#102C26",
     borderRadius: 28,
     marginBottom: 14,
   },
