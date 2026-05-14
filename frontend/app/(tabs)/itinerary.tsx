@@ -521,7 +521,7 @@ function StartTimeCard({
             style={styles.customTimeButton}
             onPress={() => setShowCustomModal(true)}
           >
-            <IconSymbol size={14} name="plus" color="#102C26" />
+            <Ionicons size={14} name="add" color="#102C26" />
             <Text style={styles.customTimeButtonText}>Custom</Text>
           </Pressable>
         </ScrollView>
@@ -776,7 +776,7 @@ export default function ItineraryScreen() {
 
       <View style={styles.actionRow}>
         <Pressable style={styles.generateButton} onPress={generateItinerary}>
-          <IconSymbol size={18} name="arrow.clockwise" color="#FFFFFF" />
+          <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
           <Text style={styles.generateButtonText}>Regenerate</Text>
         </Pressable>
 
@@ -784,7 +784,7 @@ export default function ItineraryScreen() {
           style={styles.secondaryButton}
           onPress={() => router.navigate("/saved")}
         >
-          <IconSymbol size={18} name="pencil" color="#102C26" />
+          <Ionicons name="pencil-outline" size={18} color="#102C26" />
           <Text style={styles.secondaryButtonText}>Edit</Text>
         </Pressable>
       </View>
