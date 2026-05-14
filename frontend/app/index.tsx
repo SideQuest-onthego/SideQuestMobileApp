@@ -337,8 +337,9 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   signUpButton: {
+    width: 150,
     backgroundColor: "#ffffff",
-    paddingHorizontal: 40,
+    //paddingHorizontal: 40,
     paddingVertical: 12,
     borderRadius: 25,
     shadowColor: "#52b788",
@@ -353,8 +354,9 @@ const styles = StyleSheet.create({
     alignSelf: "center",
   },
   loginButton: {
+    width: 150,
     backgroundColor: "#ffffff",
-    paddingHorizontal: 40,
+    //paddingHorizontal: 40,
     paddingVertical: 12,
     borderRadius: 25,
     shadowColor: "#52b788",
