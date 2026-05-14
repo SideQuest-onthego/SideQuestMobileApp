@@ -5,7 +5,8 @@ import { useLocation } from "../../context/LocationContext";
 import type { ActivityModel } from "../../types/sidequest-models";
 import { fetchNearbyPlacesPage } from "../../services/googlePlaces";
 import {
-  loadUserSearchPreferences,
+  DEFAULT_PREFERENCES,
+  subscribeToUserSearchPreferences,
 } from "../../services/userPreferences";
 import { rankPlacesByPreferences } from "../../services/placeRanking";
 
@@ -20,8 +21,21 @@ export default function HomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
 
   useEffect(() => {
+    return subscribeToUserSearchPreferences((nextPreferences) => {
+      setPreferences(nextPreferences);
+      setHasLoadedPreferences(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedPreferences) {
+      return;
+    }
+
     let mounted = true;
 
     async function loadPlaces() {
@@ -29,7 +43,10 @@ export default function HomeScreen() {
       setError(null);
       setNextCursor(0);
       try {
-        const preferences = await loadUserSearchPreferences();
+        const searchPreferences = {
+          ...preferences,
+          distance: radiusMiles,
+        };
         const searchCenter = userLocation
           ? {
               lat: userLocation.latitude,
@@ -46,7 +63,7 @@ export default function HomeScreen() {
         );
         if (!mounted) return;
         if (firstPage.places.length > 0) {
-          setData(rankPlacesByPreferences(firstPage.places, preferences));
+          setData(rankPlacesByPreferences(firstPage.places, searchPreferences));
           setNextCursor(firstPage.nextCursor);
         } else {
           setData([]);
@@ -72,7 +89,7 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, [radiusMiles, userLocation]);
+  }, [hasLoadedPreferences, preferences, radiusMiles, userLocation]);
 
   async function handleLoadMore() {
     if (loading || isLoadingMore || nextCursor === null) {
@@ -82,7 +99,10 @@ export default function HomeScreen() {
     setIsLoadingMore(true);
 
     try {
-      const preferences = await loadUserSearchPreferences();
+      const searchPreferences = {
+        ...preferences,
+        distance: radiusMiles,
+      };
       const searchCenter = userLocation
         ? {
             lat: userLocation.latitude,
@@ -103,7 +123,10 @@ export default function HomeScreen() {
         for (const place of page.places) {
           merged.set(place.id, place);
         }
-        return rankPlacesByPreferences(Array.from(merged.values()), preferences);
+        return rankPlacesByPreferences(
+          Array.from(merged.values()),
+          searchPreferences,
+        );
       });
       setNextCursor(page.nextCursor);
     } catch (e) {

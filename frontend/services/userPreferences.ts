@@ -2,7 +2,8 @@
  * typescript model for User Preferences 
  */
 
-import { doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 
 import { auth, db } from "@/FirebaseConfig";
 
@@ -19,6 +20,23 @@ export const DEFAULT_PREFERENCES: UserSearchPreferences = {
   distance: 10,
 };
 
+function parseUserSearchPreferences(data?: Record<string, unknown>): UserSearchPreferences {
+  if (!data) {
+    return DEFAULT_PREFERENCES;
+  }
+
+  return {
+    budget:
+      typeof data.budget === "number" && data.budget > 0
+        ? data.budget
+        : DEFAULT_PREFERENCES.budget,
+    distance:
+      typeof data.distance === "number" && data.distance > 0
+        ? data.distance
+        : DEFAULT_PREFERENCES.distance,
+  };
+}
+
 export async function loadUserSearchPreferences(): Promise<UserSearchPreferences> {
   const user = auth.currentUser;
 
@@ -34,20 +52,41 @@ export async function loadUserSearchPreferences(): Promise<UserSearchPreferences
       return DEFAULT_PREFERENCES;
     }
 
-    const data = snapshot.data();
-
-    return {
-      budget:
-        typeof data.budget === "number" && data.budget > 0
-          ? data.budget
-          : DEFAULT_PREFERENCES.budget,
-      distance:
-        typeof data.distance === "number" && data.distance > 0
-          ? data.distance
-          : DEFAULT_PREFERENCES.distance,
-    };
+    return parseUserSearchPreferences(snapshot.data());
   } catch (error) {
     console.error("Failed to load search preferences:", error);
     return DEFAULT_PREFERENCES;
   }
+}
+
+export function subscribeToUserSearchPreferences(
+  onChange: (preferences: UserSearchPreferences) => void,
+) {
+  let unsubscribePreferences: (() => void) | undefined;
+
+  const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+    unsubscribePreferences?.();
+    unsubscribePreferences = undefined;
+
+    if (!user) {
+      onChange(DEFAULT_PREFERENCES);
+      return;
+    }
+
+    unsubscribePreferences = onSnapshot(
+      doc(db, "userPreferences", user.uid),
+      (snapshot) => {
+        onChange(parseUserSearchPreferences(snapshot.data()));
+      },
+      (error) => {
+        console.error("Failed to subscribe to search preferences:", error);
+        onChange(DEFAULT_PREFERENCES);
+      },
+    );
+  });
+
+  return () => {
+    unsubscribePreferences?.();
+    unsubscribeAuth();
+  };
 }
