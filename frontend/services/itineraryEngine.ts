@@ -270,7 +270,11 @@ function buildRouteFromStart(
   return { orderedPlaces, score };
 }
 
-function orderPlacesForItinerary(places: ActivityModel[]) {
+function getRouteKey(places: ActivityModel[]) {
+  return places.map((place) => place.id).join("|");
+}
+
+function getRouteCandidatesForItinerary(places: ActivityModel[]) {
   const rankedStarts = places
     .map((place, index) => ({
       index,
@@ -285,7 +289,28 @@ function orderPlacesForItinerary(places: ActivityModel[]) {
 
   routeCandidates.sort((a, b) => a.score - b.score);
 
-  return routeCandidates[0]?.orderedPlaces ?? places;
+  const seenRoutes = new Set<string>();
+
+  return routeCandidates.filter((candidate) => {
+    const routeKey = getRouteKey(candidate.orderedPlaces);
+    if (seenRoutes.has(routeKey)) {
+      return false;
+    }
+
+    seenRoutes.add(routeKey);
+    return true;
+  });
+}
+
+function orderPlacesForItinerary(places: ActivityModel[], variantIndex = 0) {
+  const routeCandidates = getRouteCandidatesForItinerary(places);
+  const normalizedIndex =
+    routeCandidates.length === 0
+      ? 0
+      : ((variantIndex % routeCandidates.length) + routeCandidates.length) %
+        routeCandidates.length;
+
+  return routeCandidates[normalizedIndex]?.orderedPlaces ?? places;
 }
 
 function buildStopNotes(
@@ -324,12 +349,17 @@ function buildStopNotes(
 
 export function generateItineraryResult(
   places: ActivityModel[],
+  variantIndex = 0,
+  preserveOrder = false,
 ): ItineraryResult | null {
   if (places.length < MIN_ITINERARY_PLACES) {
     return null;
   }
 
-  const ordered = orderPlacesForItinerary(places.slice(0, MAX_ITINERARY_PLACES));
+  const scopedPlaces = places.slice(0, MAX_ITINERARY_PLACES);
+  const ordered = preserveOrder
+    ? scopedPlaces
+    : orderPlacesForItinerary(scopedPlaces, variantIndex);
   let clock = START_OF_DAY_MINS;
   let totalActivityMinutes = 0;
   let totalTravelMinutes = 0;
