@@ -16,6 +16,7 @@ type Props = {
   itinerary: GeneratedItinerary | null;
   isLoading: boolean;
   onClose: () => void;
+  onApply: () => void;
 };
 
 function formatHours(minutes: number) {
@@ -31,7 +32,9 @@ export default function AiItineraryModal({
   itinerary,
   isLoading,
   onClose,
+  onApply,
 }: Props) {
+  const canApply = !isLoading && !!itinerary && itinerary.stops.length > 0;
   return (
     <Modal
       visible={visible}
@@ -142,7 +145,10 @@ export default function AiItineraryModal({
         )}
 
         <View style={styles.footer}>
-          <Pressable style={styles.primaryButton} onPress={onClose}>
+          <Pressable
+            style={[styles.primaryButton, !canApply && styles.primaryButtonDisabled]}
+            onPress={canApply ? onApply : onClose}
+          >
             <Text style={styles.primaryButtonText}>Done</Text>
           </Pressable>
         </View>
@@ -362,6 +368,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
   },
   primaryButtonText: {
     fontSize: 16,

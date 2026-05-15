@@ -584,6 +584,7 @@ export default function ItineraryScreen() {
     generateItinerary,
     removeFromItinerary,
     reorderItineraryPlace,
+    applyItineraryOrder,
   } = useSavedPlaces();
 
   // State for start time and expanded transit
@@ -727,6 +728,20 @@ export default function ItineraryScreen() {
       setIsGeneratingAi(false);
     }
   }, [itineraryPlaces, isGeneratingAi, startTime]);
+
+  const handleApplyAiItinerary = useCallback(() => {
+    if (!aiItinerary || aiItinerary.stops.length === 0) {
+      setAiModalVisible(false);
+      return;
+    }
+
+    const orderedIds = [...aiItinerary.stops]
+      .sort((a, b) => a.order - b.order)
+      .map((stop) => stop.place.id);
+
+    applyItineraryOrder(orderedIds);
+    setAiModalVisible(false);
+  }, [aiItinerary, applyItineraryOrder]);
 
   const timelineTimes = useMemo(
     () =>
@@ -1158,6 +1173,7 @@ export default function ItineraryScreen() {
         itinerary={aiItinerary}
         isLoading={isGeneratingAi}
         onClose={() => setAiModalVisible(false)}
+        onApply={handleApplyAiItinerary}
       />
     </ScrollView>
     </SafeAreaView>
