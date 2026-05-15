@@ -79,10 +79,10 @@ export default function BudgetScreen() {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.push("/travel")}
+          onPress={() => router.push("/distance")}
           disabled={isLoading}
         >
-          <Text style={styles.backButtonText}>Back to Travel</Text>
+          <Text style={styles.backButtonText}>Back to Distance</Text>
         </TouchableOpacity>
 
         {/*The main card container containing all the content*/}
