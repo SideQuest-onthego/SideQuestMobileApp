@@ -29,6 +29,7 @@ import React, {
 } from "react";
 import {
   Image,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -39,6 +40,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
+
+type StopItemLayout = {
+  y: number;
+  height: number;
+};
+
+type DragState = {
+  placeId: string;
+  fromIndex: number;
+  targetIndex: number;
+  dy: number;
+};
 
 function formatPrice(min: number, max: number) {
   if (min === 0 && max === 0) {
@@ -565,12 +578,12 @@ function StartTimeCard({
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
   const {
     itineraryPlaces,
     generatedItinerary,
     generateItinerary,
     removeFromItinerary,
+    reorderItineraryPlace,
   } = useSavedPlaces();
 
   // State for start time and expanded transit
@@ -578,10 +591,115 @@ export default function ItineraryScreen() {
   const [expandedTransitStop, setExpandedTransitStop] = useState<number | null>(
     null,
   );
+  const [isEditingItinerary, setIsEditingItinerary] = useState(false); // state for trigerring edit state
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const stopLayoutsRef = useRef<Record<string, StopItemLayout>>({});
 
   const itineraryView = useMemo(
     () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
     [generatedItinerary, itineraryPlaces],
+  );
+// Drag for changing order of places
+  const updateDragState = useCallback((nextDragState: DragState | null) => {
+    dragStateRef.current = nextDragState;
+    setDragState(nextDragState);
+  }, []);
+
+  const getDragTargetIndex = useCallback(
+    (placeId: string, dy: number) => {
+      const activeLayout = stopLayoutsRef.current[placeId];
+      if (!activeLayout) {
+        return dragStateRef.current?.fromIndex ?? 0;
+      }
+
+      const activeCenter = activeLayout.y + activeLayout.height / 2 + dy;
+      const orderedLayouts = itineraryView
+        .map(({ place }, index) => {
+          if (place.id === placeId) {
+            return null;
+          }
+
+          const layout = stopLayoutsRef.current[place.id];
+          return layout
+            ? {
+                index,
+                center: layout.y + layout.height / 2,
+              }
+            : null;
+        })
+        .filter(
+          (item): item is { index: number; center: number } => item !== null,
+        );
+
+      if (orderedLayouts.length === 0) {
+        return dragStateRef.current?.fromIndex ?? 0;
+      }
+
+      const targetIndex = orderedLayouts.filter(
+        (item) => activeCenter > item.center,
+      ).length;
+
+      return Math.min(targetIndex, itineraryView.length - 1);
+    },
+    [itineraryView],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: () => dragStateRef.current !== null,
+        onPanResponderMove: (_event, gestureState) => {
+          const currentDragState = dragStateRef.current;
+          if (!currentDragState) {
+            return;
+          }
+
+          updateDragState({
+            ...currentDragState,
+            dy: gestureState.dy,
+            targetIndex: getDragTargetIndex(
+              currentDragState.placeId,
+              gestureState.dy,
+            ),
+          });
+        },
+        onPanResponderRelease: () => {
+          const currentDragState = dragStateRef.current;
+          updateDragState(null);
+
+          if (
+            currentDragState &&
+            currentDragState.fromIndex !== currentDragState.targetIndex
+          ) {
+            reorderItineraryPlace(
+              currentDragState.fromIndex,
+              currentDragState.targetIndex,
+            );
+          }
+        },
+        onPanResponderTerminate: () => {
+          updateDragState(null);
+        },
+      }),
+    [getDragTargetIndex, reorderItineraryPlace, updateDragState],
+  );
+// Listen for call/when place is picked up
+  const startStopDrag = useCallback(
+    (placeId: string, index: number) => {
+      if (!isEditingItinerary) {
+        return;
+      }
+
+      updateDragState({
+        placeId,
+        fromIndex: index,
+        targetIndex: index,
+        dy: 0,
+      });
+      setExpandedTransitStop(null);
+    },
+    [isEditingItinerary, updateDragState],
   );
 
   const [aiItinerary, setAiItinerary] = useState<GeneratedItinerary | null>(
@@ -713,6 +831,7 @@ export default function ItineraryScreen() {
       <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
+      scrollEnabled={!dragState}
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.header}>
@@ -781,8 +900,17 @@ export default function ItineraryScreen() {
         </Pressable>
 
         <Pressable
-          style={styles.secondaryButton}
-          onPress={() => router.navigate("/saved")}
+          style={[
+            styles.secondaryButton,
+            isEditingItinerary && styles.secondaryButtonEditing,
+          ]}
+          onPress={() => {
+            if (dragStateRef.current) {
+              return;
+            }
+
+            setIsEditingItinerary((current) => !current);
+          }}
         >
           <Ionicons name="pencil-outline" size={18} color="#102C26" />
           <Text style={styles.secondaryButtonText}>Edit</Text>
@@ -809,8 +937,28 @@ export default function ItineraryScreen() {
             index < itineraryView.length - 1 ? itineraryView[index + 1] : null;
           const nextPlace = nextStopView?.place ?? null;
 
+          const isDraggingThisStop = dragState?.placeId === place.id;
+          const isDropTarget =
+            dragState &&
+            dragState.placeId !== place.id &&
+            dragState.targetIndex === index;
+
           return (
-            <View key={place.id}>
+            <View
+              key={place.id}
+              {...(isEditingItinerary ? panResponder.panHandlers : {})}
+              onLayout={(event) => {
+                stopLayoutsRef.current[place.id] = event.nativeEvent.layout;
+              }}
+              style={[
+                styles.timelineItem,
+                isDropTarget && styles.timelineItemDropTarget,
+                isDraggingThisStop && [
+                  styles.timelineItemDragging,
+                  { transform: [{ translateY: dragState.dy }] },
+                ],
+              ]}
+            >
               <View style={styles.stopRow}>
                 <View style={styles.markerColumn}>
                   <View style={styles.timelineMarker}>
@@ -820,12 +968,22 @@ export default function ItineraryScreen() {
 
                 <Pressable
                   style={styles.stopCard}
-                  onPress={() =>
+                  delayLongPress={220}
+                  onLongPress={
+                    isEditingItinerary
+                      ? () => startStopDrag(place.id, index)
+                      : undefined
+                  }
+                  onPress={() => {
+                    if (dragStateRef.current) {
+                      return;
+                    }
+
                     router.push({
                       pathname: "/itinerary/[placeId]",
                       params: { placeId: place.id },
-                    })
-                  }
+                    });
+                  }}
                 >
                   {place.links?.imageUrl ? (
                     <Image
@@ -850,10 +1008,20 @@ export default function ItineraryScreen() {
                         </Text>
                       </View>
                       <View style={styles.stopActionsRow}>
+                        {isEditingItinerary ? (
+                          <Ionicons
+                            name="reorder-three-outline"
+                            size={20}
+                            color="#34524C"
+                          />
+                        ) : null}
                         <Pressable
                           style={styles.deleteButton}
                           onPress={(event) => {
                             event.stopPropagation();
+                            if (dragStateRef.current) {
+                              return;
+                            }
                             removeFromItinerary(place.id);
                           }}
                         >
@@ -1206,10 +1374,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#102C26",
   },
+  secondaryButtonEditing: {
+    backgroundColor: "#102C26",
+  },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#102C26",
+  },
+  secondaryButtonTextEditing: {
+    color: "#FFFFFF",
   },
 
   // Transit Directions Styles
@@ -1492,6 +1666,20 @@ const styles = StyleSheet.create({
     width: 3,
     borderRadius: 999,
     backgroundColor: "#12362E",
+  },
+  timelineItem: {
+    borderRadius: 24,
+  },
+  timelineItemDropTarget: {
+    backgroundColor: "rgba(16, 44, 38, 0.08)",
+  },
+  timelineItemDragging: {
+    zIndex: 20,
+    shadowColor: "#000000",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   travelRow: {
     flexDirection: "row",

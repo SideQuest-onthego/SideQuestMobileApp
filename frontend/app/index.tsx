@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"; //need to change the logo
+import { useEffect, useRef, useState } from "react"; //need to change the logo
 import {
   View,
   Text,
@@ -10,9 +10,7 @@ import {
   Dimensions,
   ActivityIndicator,
 } from "react-native";
-import { Link } from "expo-router";
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { Link, useRouter } from "expo-router";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "../FirebaseConfig";
 
@@ -62,7 +60,7 @@ const Particle = ({ index }: { index: number }) => {
 
     const timeout = setTimeout(animate, delay);
     return () => clearTimeout(timeout);
-  }, []);
+  }, [opacity, translateX, translateY]);
 
   const size = Math.random() * 12 + 4;
 
@@ -113,7 +111,7 @@ const App = () => {
       }
     });
     return unsubscribe;
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (checkingAuth) return;
@@ -133,7 +131,7 @@ const App = () => {
     ]).start();
 
     // Tagline fade in after logo
-    setTimeout(() => {
+    const taglineTimeout = setTimeout(() => {
       Animated.parallel([
         Animated.timing(taglineOpacity, {
           toValue: 1,
@@ -149,7 +147,7 @@ const App = () => {
     }, 800);
 
     // Button pulse loop
-    const pulse = () => {
+    const pulseAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(buttonScale, {
           toValue: 1.06,
@@ -161,11 +159,24 @@ const App = () => {
           duration: 800,
           useNativeDriver: true,
         }),
-      ]).start(() => pulse());
-    };
+      ]),
+    );
 
-    setTimeout(() => pulse(), 1500);
-  }, [checkingAuth]);
+    const pulseTimeout = setTimeout(() => pulseAnimation.start(), 1500);
+
+    return () => {
+      clearTimeout(taglineTimeout);
+      clearTimeout(pulseTimeout);
+      pulseAnimation.stop();
+    };
+  }, [
+    buttonScale,
+    checkingAuth,
+    logoOpacity,
+    logoTranslateY,
+    taglineOpacity,
+    taglineTranslateY,
+  ]);
 
   if (checkingAuth) {
     return (
