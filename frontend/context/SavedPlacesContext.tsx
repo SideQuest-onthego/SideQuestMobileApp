@@ -39,9 +39,9 @@ type SavedPlacesContextType = {
 
 type AddToItineraryResult = "added" | "duplicate" | "full" | "over-budget";
 
-const SavedPlacesContext = createContext<
-  SavedPlacesContextType | undefined
->(undefined);
+const SavedPlacesContext = createContext<SavedPlacesContextType | undefined>(
+  undefined,
+);
 
 // removes undefined values before saving to Firestore
 function stripUndefined<T>(value: T): T {
@@ -72,7 +72,9 @@ async function refreshGooglePlaceImages(places: ActivityModel[]) {
       }
 
       try {
-        const imageUrl = await fetchGooglePlacePhotoUrl(getGooglePlaceId(place));
+        const imageUrl = await fetchGooglePlacePhotoUrl(
+          getGooglePlaceId(place),
+        );
         if (!imageUrl) return place;
 
         return {
@@ -237,6 +239,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     [savedPlaces],
   );
 
+  // If the itinerary exceeds the user's budget, clear the itinerary and show an alert
   useEffect(() => {
     if (itineraryPlaces.length === 0 || !generatedItinerary) {
       return;
@@ -247,7 +250,6 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     if (itineraryBudget > 0 && itineraryCost > itineraryBudget) {
       setItineraryPlaces([]);
       setGeneratedItinerary(null);
-      setItineraryVariantIndex(0);
 
       persistItineraryState([], null);
     }
@@ -267,25 +269,15 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       persistItineraryState(itineraryPlaces, nextGenerated);
     }
 
-    if (
-      itineraryPlaces.length < MIN_ITINERARY_PLACES &&
-      generatedItinerary
-    ) {
+    if (itineraryPlaces.length < MIN_ITINERARY_PLACES && generatedItinerary) {
       setGeneratedItinerary(null);
       setItineraryVariantIndex(0);
       persistItineraryState(itineraryPlaces, null);
     }
-  }, [
-    generatedItinerary,
-    itineraryPlaces,
-    persistItineraryState,
-  ]);
+  }, [generatedItinerary, itineraryPlaces, persistItineraryState]);
 
   useEffect(() => {
-    if (
-      itineraryPlaces.length >= MIN_ITINERARY_PLACES &&
-      generatedItinerary
-    ) {
+    if (itineraryPlaces.length >= MIN_ITINERARY_PLACES && generatedItinerary) {
       console.warn(
         "Generated itinerary available:",
         JSON.stringify(generatedItinerary, null, 2),
