@@ -34,6 +34,7 @@ type SavedPlacesContextType = {
   addToItinerary: (place: ActivityModel) => AddToItineraryResult;
   removeFromItinerary: (placeId: string) => void;
   reorderItineraryPlace: (fromIndex: number, toIndex: number) => void;
+  applyItineraryOrder: (orderedPlaceIds: string[]) => void;
   generateItinerary: () => void;
 };
 
@@ -383,6 +384,49 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     [persistItineraryState],
   );
 
+  const applyItineraryOrder = useCallback(
+    (orderedPlaceIds: string[]) => {
+      setItineraryPlaces((prev) => {
+        if (prev.length === 0 || orderedPlaceIds.length === 0) {
+          return prev;
+        }
+
+        const placeMap = new Map(prev.map((p) => [p.id, p]));
+        const seen = new Set<string>();
+        const ordered: ActivityModel[] = [];
+
+        for (const id of orderedPlaceIds) {
+          const place = placeMap.get(id);
+          if (place && !seen.has(id)) {
+            ordered.push(place);
+            seen.add(id);
+          }
+        }
+
+        for (const place of prev) {
+          if (!seen.has(place.id)) {
+            ordered.push(place);
+          }
+        }
+
+        const sameOrder =
+          ordered.length === prev.length &&
+          ordered.every((place, index) => place.id === prev[index].id);
+
+        if (sameOrder) {
+          return prev;
+        }
+
+        const nextGenerated = generateItineraryResult(ordered, 0, true);
+        setItineraryVariantIndex(0);
+        setGeneratedItinerary(nextGenerated);
+        persistItineraryState(ordered, nextGenerated);
+        return ordered;
+      });
+    },
+    [persistItineraryState],
+  );
+
   const generateItinerary = useCallback(() => {
     const nextVariantIndex = itineraryVariantIndex + 1;
     const nextGenerated = generateItineraryResult(
@@ -408,6 +452,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
         addToItinerary,
         removeFromItinerary,
         reorderItineraryPlace,
+        applyItineraryOrder,
         generateItinerary,
       }}
     >
