@@ -14,6 +14,7 @@ import {
   MIN_ITINERARY_PLACES,
   canAddPlaceWithinBudget,
   generateItineraryResult,
+  getItineraryEstimatedCost,
 } from "@/services/itineraryEngine";
 import { fetchGooglePlacePhotoUrl } from "@/services/googlePlaces";
 import { DEFAULT_PREFERENCES } from "@/services/userPreferences";
@@ -237,12 +238,6 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-<<<<<<< Updated upstream
-    if (
-      itineraryPlaces.length >= MIN_ITINERARY_PLACES &&
-      !generatedItinerary
-    ) {
-=======
     if (itineraryPlaces.length === 0 || !generatedItinerary) {
       return;
     }
@@ -265,7 +260,6 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (itineraryPlaces.length >= MIN_ITINERARY_PLACES && !generatedItinerary) {
->>>>>>> Stashed changes
       const nextGenerated = generateItineraryResult(itineraryPlaces); // function comes from services/itineraryEngine.ts
       console.log("Generated itinerary result:", nextGenerated); // console log to see what the itinerary object looks like
       setGeneratedItinerary(nextGenerated);
