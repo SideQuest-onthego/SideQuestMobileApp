@@ -2,6 +2,7 @@ import React from "react";
 import { Image, StyleSheet, Text, View, Pressable } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { ActivityModel } from "../types/sidequest-models";
+import { formatCategoryLabel } from "../services/placeDisplay";
 
 type PlaceCardProps = {
   item: ActivityModel;
@@ -38,15 +39,19 @@ export default function PlaceCard({
         </Text>
 
         <View style={styles.imageWrap}>
-          <Image
-            source={{
-              uri:
-                item.links?.imageUrl ??
-                "https://picsum.photos/seed/sidequest/800/500",
-            }}
-            style={styles.image}
-            resizeMode="cover"
-          />
+          {item.links?.imageUrl ? (
+            <Image
+              source={{ uri: item.links.imageUrl }}
+              style={styles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.image, styles.imagePlaceholder]}>
+              <Text style={styles.imagePlaceholderText}>
+                Google photo unavailable
+              </Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.infoRow}>
@@ -59,7 +64,9 @@ export default function PlaceCard({
             )}
           </View>
           {item.category && (
-            <Text style={styles.category}>{item.category}</Text>
+            <Text style={styles.category}>
+              {formatCategoryLabel(item.category, item.type)}
+            </Text>
           )}
         </View>
 
@@ -105,7 +112,7 @@ const styles = StyleSheet.create({
 
   card: {
     backgroundColor: "white",
-    width: "90%",
+    width: "92%",
     borderRadius: 28,
     padding: 16,
     borderWidth: 2,
@@ -128,6 +135,18 @@ const styles = StyleSheet.create({
   image: {
     width: "100%",
     height: "100%",
+  },
+
+  imagePlaceholder: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#D7E9E4",
+  },
+
+  imagePlaceholderText: {
+    color: "#34524C",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   infoRow: {

@@ -9,10 +9,18 @@ import React, {
 } from "react";
 import type { ActivityModel } from "../types/sidequest-models";
 import type { ItineraryResult } from "@/types/itinerary";
-import { generateItineraryResult } from "@/services/itineraryEngine";
+import {
+  MAX_ITINERARY_PLACES,
+  MIN_ITINERARY_PLACES,
+  canAddPlaceWithinBudget,
+  generateItineraryResult,
+  getItineraryEstimatedCost,
+} from "@/services/itineraryEngine";
+import { fetchGooglePlacePhotoUrl } from "@/services/googlePlaces";
+import { DEFAULT_PREFERENCES } from "@/services/userPreferences";
 import { auth } from "../FirebaseConfig";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "../FirebaseConfig";
 
 type SavedPlacesContextType = {
@@ -23,14 +31,18 @@ type SavedPlacesContextType = {
   addPlace: (place: ActivityModel) => void;
   removePlace: (placeId: string) => void;
 
-  addToItinerary: (place: ActivityModel) => void;
+  addToItinerary: (place: ActivityModel) => AddToItineraryResult;
   removeFromItinerary: (placeId: string) => void;
+  reorderItineraryPlace: (fromIndex: number, toIndex: number) => void;
+  applyItineraryOrder: (orderedPlaceIds: string[]) => void;
   generateItinerary: () => void;
 };
 
-const SavedPlacesContext = createContext<
-  SavedPlacesContextType | undefined
->(undefined);
+type AddToItineraryResult = "added" | "duplicate" | "full" | "over-budget";
+
+const SavedPlacesContext = createContext<SavedPlacesContextType | undefined>(
+  undefined,
+);
 
 // removes undefined values before saving to Firestore
 function stripUndefined<T>(value: T): T {
@@ -49,6 +61,38 @@ function stripUndefined<T>(value: T): T {
   return value;
 }
 
+function getGooglePlaceId(place: ActivityModel) {
+  return place.source?.googlePlaceId || place.id;
+}
+
+async function refreshGooglePlaceImages(places: ActivityModel[]) {
+  return Promise.all(
+    places.map(async (place) => {
+      if (place.source?.provider !== "google_places") {
+        return place;
+      }
+
+      try {
+        const imageUrl = await fetchGooglePlacePhotoUrl(
+          getGooglePlaceId(place),
+        );
+        if (!imageUrl) return place;
+
+        return {
+          ...place,
+          links: {
+            ...place.links,
+            imageUrl,
+          },
+        };
+      } catch (error) {
+        console.warn(`Failed to load Google photo for ${place.id}:`, error);
+        return place;
+      }
+    }),
+  );
+}
+
 export function useSavedPlaces() {
   const context = useContext(SavedPlacesContext);
   if (!context)
@@ -61,6 +105,10 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
   const [itineraryPlaces, setItineraryPlaces] = useState<ActivityModel[]>([]);
   const [generatedItinerary, setGeneratedItinerary] =
     useState<ItineraryResult | null>(null);
+  const [itineraryVariantIndex, setItineraryVariantIndex] = useState(0);
+  const [itineraryBudget, setItineraryBudget] = useState(
+    DEFAULT_PREFERENCES.budget,
+  );
   const [user, setUser] = useState<User | null>(auth.currentUser);
 
   // auth listener
@@ -69,12 +117,38 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     return unsubscribe;
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(
+      doc(db, "userPreferences", user.uid),
+      (snapshot) => {
+        const data = snapshot.data();
+        setItineraryBudget(
+          typeof data?.budget === "number" && data.budget > 0
+            ? data.budget
+            : DEFAULT_PREFERENCES.budget,
+        );
+      },
+      (error) => {
+        console.error("Failed to load itinerary budget:", error);
+        setItineraryBudget(DEFAULT_PREFERENCES.budget);
+      },
+    );
+
+    return unsubscribe;
+  }, [user]);
+
   // load saved places
   useEffect(() => {
     if (!user) {
       setSavedPlaces([]);
       setItineraryPlaces([]);
       setGeneratedItinerary(null);
+      setItineraryVariantIndex(0);
       return;
     }
 
@@ -85,30 +159,47 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
         if (snapshot.exists()) {
           const savedData: ActivityModel[] = snapshot.data().saved || [];
-          const itinerarySelection: ActivityModel[] =
-            snapshot.data().itinerarySelection || [];
-          const savedGeneratedItinerary: ItineraryResult | null =
-            snapshot.data().generatedItinerary || null;
-
-          setSavedPlaces(
-            savedData.map((p) => ({
-              ...p,
-              id: p.id || crypto.randomUUID(),
-            })),
+          const itinerarySelection: ActivityModel[] = (
+            snapshot.data().itinerarySelection || []
+          ).slice(0, MAX_ITINERARY_PLACES);
+          const normalizedSavedPlaces = savedData.map((p) => ({
+            ...p,
+            id: p.id || crypto.randomUUID(),
+          }));
+          const normalizedItinerarySelection = itinerarySelection.map((p) => ({
+            ...p,
+            id: p.id || crypto.randomUUID(),
+          }));
+          const [hydratedSavedPlaces, hydratedItinerarySelection] =
+            await Promise.all([
+              refreshGooglePlaceImages(normalizedSavedPlaces),
+              refreshGooglePlaceImages(normalizedItinerarySelection),
+            ]);
+          const nextGenerated = generateItineraryResult(
+            hydratedItinerarySelection,
           );
 
-          setItineraryPlaces(
-            itinerarySelection.map((p) => ({
-              ...p,
-              id: p.id || crypto.randomUUID(),
-            })),
-          );
+          setSavedPlaces(hydratedSavedPlaces);
 
-          setGeneratedItinerary(savedGeneratedItinerary);
+          setItineraryPlaces(hydratedItinerarySelection);
+
+          setGeneratedItinerary(nextGenerated);
+          setItineraryVariantIndex(0);
+
+          void setDoc(
+            doc(db, "savedPlaces", user.uid),
+            {
+              saved: stripUndefined(hydratedSavedPlaces),
+              itinerarySelection: stripUndefined(hydratedItinerarySelection),
+              generatedItinerary: stripUndefined(nextGenerated),
+            },
+            { merge: true },
+          );
         } else {
           setSavedPlaces([]);
           setItineraryPlaces([]);
           setGeneratedItinerary(null);
+          setItineraryVariantIndex(0);
         }
       } catch (e) {
         console.error("Failed to fetch saved places:", e);
@@ -141,6 +232,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // ITINERARY TEMP STATE TO SEE IF IT CAN CALL FUNCTION
   const persistItineraryState = useCallback(
     (selection: ActivityModel[], itinerary: ItineraryResult | null) => {
       void saveToFirestore(savedPlaces, selection, itinerary);
@@ -148,26 +240,45 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
     [savedPlaces],
   );
 
+  // If the itinerary exceeds the user's budget, clear the itinerary and show an alert
   useEffect(() => {
-    if (itineraryPlaces.length >= 5 && !generatedItinerary) {
-      const nextGenerated = generateItineraryResult(itineraryPlaces);
-      console.log("Generated itinerary result:", nextGenerated);
-      setGeneratedItinerary(nextGenerated);
-      persistItineraryState(itineraryPlaces, nextGenerated);
+    if (itineraryPlaces.length === 0 || !generatedItinerary) {
+      return;
     }
 
-    if (itineraryPlaces.length < 5 && generatedItinerary) {
+    const itineraryCost = getItineraryEstimatedCost(itineraryPlaces);
+
+    if (itineraryBudget > 0 && itineraryCost > itineraryBudget) {
+      setItineraryPlaces([]);
       setGeneratedItinerary(null);
-      persistItineraryState(itineraryPlaces, null);
+
+      persistItineraryState([], null);
     }
   }, [
-    generatedItinerary,
+    itineraryBudget,
     itineraryPlaces,
+    generatedItinerary,
     persistItineraryState,
   ]);
 
   useEffect(() => {
-    if (itineraryPlaces.length >= 5 && generatedItinerary) {
+    if (itineraryPlaces.length >= MIN_ITINERARY_PLACES && !generatedItinerary) {
+      const nextGenerated = generateItineraryResult(itineraryPlaces); // function comes from services/itineraryEngine.ts
+      console.log("Generated itinerary result:", nextGenerated); // console log to see what the itinerary object looks like
+      setGeneratedItinerary(nextGenerated);
+      setItineraryVariantIndex(0);
+      persistItineraryState(itineraryPlaces, nextGenerated);
+    }
+
+    if (itineraryPlaces.length < MIN_ITINERARY_PLACES && generatedItinerary) {
+      setGeneratedItinerary(null);
+      setItineraryVariantIndex(0);
+      persistItineraryState(itineraryPlaces, null);
+    }
+  }, [generatedItinerary, itineraryPlaces, persistItineraryState]);
+
+  useEffect(() => {
+    if (itineraryPlaces.length >= MIN_ITINERARY_PLACES && generatedItinerary) {
       console.warn(
         "Generated itinerary available:",
         JSON.stringify(generatedItinerary, null, 2),
@@ -198,6 +309,7 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
       setItineraryPlaces(updatedSelection);
       setGeneratedItinerary(nextGenerated);
+      setItineraryVariantIndex(0);
       void saveToFirestore(updated, updatedSelection, nextGenerated);
       return updated;
     });
@@ -205,17 +317,29 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
 
   // itinerary logic
   const addToItinerary = (place: ActivityModel) => {
+    if (itineraryPlaces.some((p) => p.id === place.id)) return "duplicate";
+    if (itineraryPlaces.length >= MAX_ITINERARY_PLACES) return "full";
+    if (!canAddPlaceWithinBudget(itineraryPlaces, place, itineraryBudget)) {
+      return "over-budget";
+    }
+
     setItineraryPlaces((prev) => {
       if (prev.some((p) => p.id === place.id)) return prev;
+      if (prev.length >= MAX_ITINERARY_PLACES) return prev;
+      if (!canAddPlaceWithinBudget(prev, place, itineraryBudget)) return prev;
+
       const updated = [...prev, place];
       const nextGenerated = generateItineraryResult(updated);
-      if (updated.length >= 5) {
+      setItineraryVariantIndex(0);
+      if (updated.length >= MIN_ITINERARY_PLACES) {
         console.log("Generated itinerary result:", nextGenerated);
       }
       setGeneratedItinerary(nextGenerated);
       persistItineraryState(updated, nextGenerated);
       return updated;
     });
+
+    return "added";
   };
 
   const removeFromItinerary = (placeId: string) => {
@@ -223,19 +347,99 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
       const updated = prev.filter((p) => p.id !== placeId);
       const nextGenerated = generateItineraryResult(updated);
       setGeneratedItinerary(nextGenerated);
+      setItineraryVariantIndex(0);
       persistItineraryState(updated, nextGenerated);
       return updated;
     });
   };
 
+  const reorderItineraryPlace = useCallback(
+    (fromIndex: number, toIndex: number) => {
+      setItineraryPlaces((prev) => {
+        if (
+          fromIndex === toIndex ||
+          fromIndex < 0 ||
+          toIndex < 0 ||
+          fromIndex >= prev.length ||
+          toIndex >= prev.length
+        ) {
+          return prev;
+        }
+
+        const updated = [...prev];
+        const [movedPlace] = updated.splice(fromIndex, 1);
+        if (!movedPlace) {
+          return prev;
+        }
+
+        updated.splice(toIndex, 0, movedPlace);
+        const nextGenerated = generateItineraryResult(updated, 0, true);
+
+        setItineraryVariantIndex(0);
+        setGeneratedItinerary(nextGenerated);
+        persistItineraryState(updated, nextGenerated);
+        return updated;
+      });
+    },
+    [persistItineraryState],
+  );
+
+  const applyItineraryOrder = useCallback(
+    (orderedPlaceIds: string[]) => {
+      setItineraryPlaces((prev) => {
+        if (prev.length === 0 || orderedPlaceIds.length === 0) {
+          return prev;
+        }
+
+        const placeMap = new Map(prev.map((p) => [p.id, p]));
+        const seen = new Set<string>();
+        const ordered: ActivityModel[] = [];
+
+        for (const id of orderedPlaceIds) {
+          const place = placeMap.get(id);
+          if (place && !seen.has(id)) {
+            ordered.push(place);
+            seen.add(id);
+          }
+        }
+
+        for (const place of prev) {
+          if (!seen.has(place.id)) {
+            ordered.push(place);
+          }
+        }
+
+        const sameOrder =
+          ordered.length === prev.length &&
+          ordered.every((place, index) => place.id === prev[index].id);
+
+        if (sameOrder) {
+          return prev;
+        }
+
+        const nextGenerated = generateItineraryResult(ordered, 0, true);
+        setItineraryVariantIndex(0);
+        setGeneratedItinerary(nextGenerated);
+        persistItineraryState(ordered, nextGenerated);
+        return ordered;
+      });
+    },
+    [persistItineraryState],
+  );
+
   const generateItinerary = useCallback(() => {
-    const nextGenerated = generateItineraryResult(itineraryPlaces);
-    if (itineraryPlaces.length >= 5) {
+    const nextVariantIndex = itineraryVariantIndex + 1;
+    const nextGenerated = generateItineraryResult(
+      itineraryPlaces,
+      nextVariantIndex,
+    );
+    if (itineraryPlaces.length >= MIN_ITINERARY_PLACES) {
       console.log("Generated itinerary result:", nextGenerated);
     }
+    setItineraryVariantIndex(nextVariantIndex);
     setGeneratedItinerary(nextGenerated);
     persistItineraryState(itineraryPlaces, nextGenerated);
-  }, [itineraryPlaces, persistItineraryState]);
+  }, [itineraryPlaces, itineraryVariantIndex, persistItineraryState]);
 
   return (
     <SavedPlacesContext.Provider
@@ -247,6 +451,8 @@ export function SavedPlacesProvider({ children }: { children: ReactNode }) {
         removePlace,
         addToItinerary,
         removeFromItinerary,
+        reorderItineraryPlace,
+        applyItineraryOrder,
         generateItinerary,
       }}
     >

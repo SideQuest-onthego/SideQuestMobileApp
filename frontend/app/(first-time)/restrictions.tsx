@@ -83,7 +83,7 @@ export default function RestrictionsScreen() {
     }
 
     if (dietFilter === true) {
-      router.push("/(first-time)/dietary");
+      router.push("/dietary");
     } else {
       router.push("/(tabs)/home");
     }

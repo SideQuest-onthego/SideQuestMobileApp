@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
    View,
@@ -137,7 +136,7 @@ const styles = StyleSheet.create({
       borderRadius: 10,
       paddingVertical: 8,
       paddingHorizontal: 16,
-      marginTop: 68,
+      marginTop: 60,
       marginLeft: 24,
    },
 
@@ -151,7 +150,7 @@ const styles = StyleSheet.create({
    scroll: {
       flexGrow: 1,
       paddingHorizontal: 24,
-      paddingTop: 90,
+      paddingTop: 100,
       paddingBottom: 40,
    },
 

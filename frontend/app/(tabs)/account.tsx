@@ -2,6 +2,8 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { LogoutButton } from "@/components/logout-button";
 import { auth, db } from "@/FirebaseConfig";
 import { useLocation } from "@/context/LocationContext";
+import { useSavedPlaces } from "@/context/SavedPlacesContext";
+import { getItineraryEstimatedCost } from "@/services/itineraryEngine";
 import Slider from "@react-native-community/slider";
 import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
@@ -136,6 +138,8 @@ function preferencesReducer(
 //Main account screen component
 export default function AccountScreen() {
   const router = useRouter();
+  const { itineraryPlaces } = useSavedPlaces();
+  const [draftBudget, setDraftBudget] = useState(initialState.budget);
 
   // Get distance from LocationContext (synced across all screens)
   const { userLocation, setUserLocation, radiusMiles, setRadiusMiles } =
@@ -308,9 +312,42 @@ export default function AccountScreen() {
     }
   }
 
-  function handleSelectPresetLocation(option: (typeof LOCATION_OPTIONS)[number]) {
+  function handleSelectPresetLocation(
+    option: (typeof LOCATION_OPTIONS)[number],
+  ) {
     setUserLocation(option.coords);
     setSelectedLocationLabel(option.label);
+  }
+
+  useEffect(() => {
+    setDraftBudget(state.budget);
+  }, [state.budget]);
+
+  function handleBudgetChangeComplete(value: number) {
+    const itineraryCost = getItineraryEstimatedCost(itineraryPlaces);
+
+    if (itineraryPlaces.length > 0 && value > 0 && value < itineraryCost) {
+      Alert.alert(
+        "Clear itinerary?",
+        `Your current itinerary is estimated at $${itineraryCost}. Lowering your budget to $${value} will clear your itinerary.`,
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+            onPress: () => setDraftBudget(state.budget),
+          },
+          {
+            text: "Clear itinerary",
+            style: "destructive",
+            onPress: () => dispatch({ type: "SET_BUDGET", value }),
+          },
+        ],
+      );
+
+      return;
+    }
+
+    dispatch({ type: "SET_BUDGET", value });
   }
 
   useFocusEffect(
@@ -358,7 +395,9 @@ export default function AccountScreen() {
           {loadingGPS ? (
             <ActivityIndicator color="#102C26" size="small" />
           ) : (
-            <Text style={styles.locationActionText}>Use My Current Location</Text>
+            <Text style={styles.locationActionText}>
+              Use My Current Location
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -423,7 +462,7 @@ export default function AccountScreen() {
       <View style={styles.card}>
         <View style={styles.sliderHeader}>
           <Text style={styles.cardTitle}>Budget</Text>
-          <Text style={styles.sliderValue}>${state.budget}</Text>
+          <Text style={styles.sliderValue}>${draftBudget}</Text>
         </View>
         {/* Slider for adjusting budget preference */}
         <Slider
@@ -431,8 +470,9 @@ export default function AccountScreen() {
           minimumValue={0}
           maximumValue={1000}
           step={5}
-          value={state.budget}
-          onValueChange={(value) => dispatch({ type: "SET_BUDGET", value })}
+          value={draftBudget}
+          onValueChange={setDraftBudget}
+          onSlidingComplete={handleBudgetChangeComplete}
           minimumTrackTintColor="#102C26"
           maximumTrackTintColor="#D1D5DB"
           thumbTintColor="#102C26"
@@ -535,8 +575,7 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
   statusText: {
-    width: "100%",
-    maxWidth: 320,
+    width: "98%",
     marginBottom: 12,
     color: "#B91C1C",
     fontSize: 13,
@@ -565,6 +604,7 @@ const styles = StyleSheet.create({
   },
   selectedLocationPill: {
     marginTop: 14,
+    marginBottom: 8,
     borderRadius: 14,
     backgroundColor: "#F2FBF8",
     borderWidth: 1,
@@ -591,18 +631,17 @@ const styles = StyleSheet.create({
     color: "#5B746E",
   },
   headerRow: {
-    width: "100%",
-    maxWidth: 320,
+    width: "98%",
     alignItems: "flex-end",
-    marginTop: 20,
-    marginBottom: 18,
+    marginTop: 8,
+    marginBottom: 10,
   },
   card: {
-    width: "100%",
-    maxWidth: 320,
+    width: "98%",
+    alignSelf: "center",
     backgroundColor: "#FFFFFF",
     borderWidth: 2,
-    borderRadius: 12,
+    borderRadius: 28,
     padding: 16,
     marginBottom: 14,
   },
@@ -615,6 +654,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
+    marginBottom: 6,
   },
   sliderValue: {
     fontSize: 16,
@@ -652,7 +692,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     alignItems: "center",
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
     paddingTop: 44,
     paddingBottom: 120,
   },

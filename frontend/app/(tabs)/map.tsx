@@ -56,7 +56,8 @@ function milesToDelta(miles: number) {
 }
 
 export default function MapScreen() {
-   const { savedPlaces } = useSavedPlaces();
+   // ── Get both savedPlaces and itineraryPlaces ──
+   const { savedPlaces, itineraryPlaces } = useSavedPlaces();
 
    // ── Synced with LocationContext so both screens share the same value ──
    const { userLocation, setUserLocation, radiusMiles, setRadiusMiles } =
@@ -77,7 +78,10 @@ export default function MapScreen() {
       radius?: string;
    }>();
 
-   const places: Place[] = savedPlaces
+   // ── KEY FIX: Use itineraryPlaces if there's an active itinerary, otherwise use savedPlaces ──
+   const placesToUse = itineraryPlaces.length > 0 ? itineraryPlaces : savedPlaces;
+
+   const places: Place[] = placesToUse
       .filter((p) => p.location?.lat && p.location?.lng)
       .map((p) => ({
          id: p.id,
@@ -193,7 +197,10 @@ export default function MapScreen() {
       );
    }
 
+   // Keep react-native-maps out of the web path; it is native-only here.
+   // eslint-disable-next-line @typescript-eslint/no-require-imports
    const MapView = require("react-native-maps").default;
+   // eslint-disable-next-line @typescript-eslint/no-require-imports
    const { Polygon, Marker, Circle, Polyline } = require("react-native-maps");
 
    const defaultCenter = { latitude: 40.7128, longitude: -74.006 };
@@ -592,7 +599,7 @@ export default function MapScreen() {
                visiblePlaces.length > 0 && (
                   <Polyline
                      coordinates={routeCoordinates}
-                     strokeColor="#FF6600"
+                     strokeColor="#102C26"
                      strokeWidth={4}
                      lineDashPattern={[0]}
                   />
@@ -729,9 +736,9 @@ export default function MapScreen() {
                         value={localRadius}
                         onValueChange={handleSliderChange}
                         onSlidingComplete={handleSlidingComplete}
-                        minimumTrackTintColor="#BFD7EA"
+                        minimumTrackTintColor="#102C26"
                         maximumTrackTintColor="#ddd"
-                        thumbTintColor="#BFD7EA"
+                        thumbTintColor="#102C26"
                      />
                      <Text style={styles.sliderTick}>50 mi</Text>
                   </View>
@@ -748,7 +755,7 @@ export default function MapScreen() {
                   style={styles.addressBtn}
                   onPress={() => setAddressModalVisible(true)}
                >
-                  <Text style={styles.locationBtnText}>Enter Address</Text>
+                  <Text style={styles.addressBtnText}>Enter Address</Text>
                </TouchableOpacity>
 
                <TouchableOpacity
@@ -962,7 +969,7 @@ const styles = StyleSheet.create({
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: "#fff",
-      borderRadius: 12,
+      borderRadius: 24,
       paddingHorizontal: 12,
       paddingVertical: 10,
       shadowColor: "#000",
@@ -976,7 +983,7 @@ const styles = StyleSheet.create({
    clearBtn: { fontSize: 14, color: "#999", paddingHorizontal: 4 },
    suggestions: {
       backgroundColor: "#fff",
-      borderRadius: 12,
+      borderRadius: 24,
       marginTop: 6,
       maxHeight: 220,
       shadowColor: "#000",
@@ -995,7 +1002,7 @@ const styles = StyleSheet.create({
    suggestionDesc: { fontSize: 12, color: "#888", marginTop: 2 },
    noResults: {
       backgroundColor: "#fff",
-      borderRadius: 12,
+      borderRadius: 24,
       marginTop: 6,
       padding: 16,
       alignItems: "center",
@@ -1009,11 +1016,13 @@ const styles = StyleSheet.create({
       gap: 10,
    },
    routeToggleBtn: {
-      backgroundColor: "#FF6600",
-      borderRadius: 14,
+      backgroundColor: "#102C26",
+      borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 13,
       alignItems: "center",
+      borderWidth: 1.5,
+      borderColor: "#000",
       shadowColor: "#000",
       shadowOffset: { width: 0, height: 3 },
       shadowOpacity: 0.25,
@@ -1030,7 +1039,7 @@ const styles = StyleSheet.create({
       justifyContent: "space-between",
       alignItems: "center",
       backgroundColor: "rgba(255,255,255,0.97)",
-      borderRadius: 14,
+      borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 12,
       shadowColor: "#000",
@@ -1059,7 +1068,7 @@ const styles = StyleSheet.create({
       justifyContent: "space-between",
       alignItems: "center",
       backgroundColor: "rgba(255,255,255,0.97)",
-      borderRadius: 14,
+      borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 13,
       shadowColor: "#000",
@@ -1072,7 +1081,7 @@ const styles = StyleSheet.create({
    sliderToggleChevron: { fontSize: 12, color: "#999" },
    sliderPanel: {
       backgroundColor: "rgba(255,255,255,0.97)",
-      borderRadius: 14,
+      borderRadius: 24,
       paddingHorizontal: 16,
       paddingVertical: 12,
       shadowColor: "#000",
@@ -1106,7 +1115,7 @@ const styles = StyleSheet.create({
       backgroundColor: "#fff",
       paddingVertical: 13,
       paddingHorizontal: 12,
-      borderRadius: 30,
+      borderRadius: 24,
       borderWidth: 1.5,
       borderColor: "#000",
       shadowColor: "#000",
@@ -1116,15 +1125,20 @@ const styles = StyleSheet.create({
       elevation: 6,
       gap: 6,
    },
+   addressBtnText: {
+      color: "#000",
+      fontSize: 14,
+      fontWeight: "700",
+   },
    gpsBtn: {
       flex: 1,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#BFD7EA",
+      backgroundColor: "#102C26",
       paddingVertical: 13,
       paddingHorizontal: 12,
-      borderRadius: 30,
+      borderRadius: 24,
       borderWidth: 1.5,
       borderColor: "#000",
       shadowColor: "#000",
@@ -1134,8 +1148,8 @@ const styles = StyleSheet.create({
       elevation: 6,
       gap: 6,
    },
-   locationBtnIcon: { color: "#000", fontSize: 16, fontWeight: "700" },
-   locationBtnText: { color: "#000", fontSize: 14, fontWeight: "700" },
+   locationBtnIcon: { color: "#fff", fontSize: 16, fontWeight: "700" },
+   locationBtnText: { color: "#fff", fontSize: 14, fontWeight: "700" },
    modalOverlay: {
       flex: 1,
       backgroundColor: "rgba(0,0,0,0.45)",

@@ -19,6 +19,7 @@ const SWIPE_OUT_DURATION = 180;
 type Props = {
   data: ActivityModel[];
   onSwipeLeft?: (item: ActivityModel) => void;
+  onSwipeRight?: (item: ActivityModel) => void;
   onNearEnd?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
@@ -27,6 +28,7 @@ type Props = {
 export default function SwipeDeck({
   data,
   onSwipeLeft,
+  onSwipeRight,
   onNearEnd,
   hasMore = false,
   isLoadingMore = false,
@@ -129,6 +131,7 @@ export default function SwipeDeck({
 
     if (dir === "right") {
       addPlace(item);
+      onSwipeRight?.(item);
     } else {
       onSwipeLeft?.(item);
     }

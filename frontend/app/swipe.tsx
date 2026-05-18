@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import SwipeDeck from "../components/SwipeDeck";
-import { places } from "../data/places";
 import { fetchNearbyManhattanPlacesPage } from "../services/googlePlaces";
 import {
   DEFAULT_PREFERENCES,
@@ -14,7 +13,7 @@ import type { ActivityModel } from "../types/sidequest-models";
 const MILES_TO_METERS = 1609.34;
 
 export default function SwipeScreen() {
-  const [data, setData] = useState<ActivityModel[]>(places);
+  const [data, setData] = useState<ActivityModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [preferredDistance, setPreferredDistance] = useState(
@@ -54,11 +53,9 @@ export default function SwipeScreen() {
           setNextCursor(firstPage.nextCursor);
           setError(null);
         } else {
-          setData(rankPlacesByPreferences(places, preferences));
+          setData([]);
           setNextCursor(null);
-          setError(
-            "No live places matched your distance and budget, so showing the closest available recommendations.",
-          );
+          setError("No Google Places matched your distance and budget.");
         }
       } catch (e) {
         if (!mounted) {
@@ -68,7 +65,7 @@ export default function SwipeScreen() {
         const message =
           e instanceof Error ? e.message : "Failed to load places";
         setError(message);
-        setData(rankPlacesByPreferences(places, preferences));
+        setData([]);
         setNextCursor(null);
       } finally {
         if (mounted) {

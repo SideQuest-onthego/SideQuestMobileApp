@@ -1,29 +1,139 @@
-import React, { useEffect, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import SwipeDeck from "../../components/SwipeDeck";
 import { useLocation } from "../../context/LocationContext";
-import { places } from "../../data/places";
 import type { ActivityModel } from "../../types/sidequest-models";
 import { fetchNearbyPlacesPage } from "../../services/googlePlaces";
 import {
   DEFAULT_PREFERENCES,
-  loadUserSearchPreferences,
+  subscribeToUserSearchPreferences,
 } from "../../services/userPreferences";
 import { rankPlacesByPreferences } from "../../services/placeRanking";
 
 const MILES_TO_METERS = 1609.34;
+const SEEN_PLACES_STORAGE_KEY = "sidequest.seenPlaceIds";
+const MAX_SEEN_PLACE_IDS = 300;
+
+function createShuffleSeed() {
+  return Math.floor(Math.random() * 1_000_000_000);
+}
+
+function getSeededScore(seed: number, id: string) {
+  let hash = seed;
+
+  for (let index = 0; index < id.length; index += 1) {
+    hash = (hash * 31 + id.charCodeAt(index)) | 0;
+  }
+
+  return hash >>> 0;
+}
+
+function shufflePlacesForSession(places: ActivityModel[], seed: number) {
+  return [...places].sort(
+    (a, b) => getSeededScore(seed, a.id) - getSeededScore(seed, b.id),
+  );
+}
+
+function getUnseenPlaces(
+  places: ActivityModel[],
+  seenPlaceIds: ReadonlySet<string>,
+  fallbackToAll = true,
+) {
+  const unseenPlaces = places.filter((place) => !seenPlaceIds.has(place.id));
+  return unseenPlaces.length > 0 || !fallbackToAll ? unseenPlaces : places;
+}
+
+function parseSeenPlaceIds(value: string | null) {
+  if (!value) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed)
+      ? parsed.filter((id): id is string => typeof id === "string")
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 // HOME TAB PAGE
 
 export default function HomeScreen() {
   const { userLocation, radiusMiles } = useLocation();
-  const [data, setData] = useState<ActivityModel[]>(places);
+  const [data, setData] = useState<ActivityModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<number | null>(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [preferences, setPreferences] = useState(DEFAULT_PREFERENCES);
+  const [hasLoadedPreferences, setHasLoadedPreferences] = useState(false);
+  const [deckSeed] = useState(createShuffleSeed);
+  const [seenPlaceIds, setSeenPlaceIds] = useState<string[]>([]);
+  const [hasLoadedSeenPlaces, setHasLoadedSeenPlaces] = useState(false);
+  const seenPlaceIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
+    return subscribeToUserSearchPreferences((nextPreferences) => {
+      setPreferences(nextPreferences);
+      setHasLoadedPreferences(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    AsyncStorage.getItem(SEEN_PLACES_STORAGE_KEY)
+      .then((value) => {
+        if (!mounted) {
+          return;
+        }
+
+        setSeenPlaceIds(parseSeenPlaceIds(value));
+      })
+      .catch((error) => {
+        console.warn("Failed to load seen places:", error);
+      })
+      .finally(() => {
+        if (mounted) {
+          setHasLoadedSeenPlaces(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    seenPlaceIdsRef.current = new Set(seenPlaceIds);
+  }, [seenPlaceIds]);
+
+  const markPlaceSeen = useCallback((place: ActivityModel) => {
+    setSeenPlaceIds((previousIds) => {
+      if (previousIds.includes(place.id)) {
+        return previousIds;
+      }
+
+      const nextIds = [place.id, ...previousIds].slice(0, MAX_SEEN_PLACE_IDS);
+      seenPlaceIdsRef.current = new Set(nextIds);
+      AsyncStorage.setItem(SEEN_PLACES_STORAGE_KEY, JSON.stringify(nextIds)).catch(
+        (error) => {
+          console.warn("Failed to save seen place:", error);
+        },
+      );
+
+      return nextIds;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedPreferences || !hasLoadedSeenPlaces) {
+      return;
+    }
+
     let mounted = true;
 
     async function loadPlaces() {
@@ -31,7 +141,10 @@ export default function HomeScreen() {
       setError(null);
       setNextCursor(0);
       try {
-        const preferences = await loadUserSearchPreferences();
+        const searchPreferences = {
+          ...preferences,
+          distance: radiusMiles,
+        };
         const searchCenter = userLocation
           ? {
               lat: userLocation.latitude,
@@ -45,25 +158,34 @@ export default function HomeScreen() {
           searchCenter,
           radiusMiles * MILES_TO_METERS,
           0,
+          { forceRefresh: true },
         );
         if (!mounted) return;
         if (firstPage.places.length > 0) {
-          setData(rankPlacesByPreferences(firstPage.places, preferences));
+          const rankedPlaces = rankPlacesByPreferences(
+            firstPage.places,
+            searchPreferences,
+          );
+          const unseenPlaces = getUnseenPlaces(
+            rankedPlaces,
+            seenPlaceIdsRef.current,
+          );
+          setData(shufflePlacesForSession(unseenPlaces, deckSeed));
           setNextCursor(firstPage.nextCursor);
         } else {
-          setData(rankPlacesByPreferences(places, preferences));
+          setData([]);
           setNextCursor(null);
           setError(
             userLocation
-              ? "No live places matched this location and distance, so showing fallback recommendations."
-              : "No live places matched the default area, so showing fallback recommendations.",
+              ? "No Google Places matched this location and distance."
+              : "No Google Places matched the default area.",
           );
         }
       } catch (e) {
         if (!mounted) return;
         const message = e instanceof Error ? e.message : "Failed to load places";
         setError(message);
-        setData(rankPlacesByPreferences(places, DEFAULT_PREFERENCES));
+        setData([]);
         setNextCursor(null);
       } finally {
         if (mounted) setLoading(false);
@@ -74,7 +196,14 @@ export default function HomeScreen() {
     return () => {
       mounted = false;
     };
-  }, [radiusMiles, userLocation]);
+  }, [
+    deckSeed,
+    hasLoadedPreferences,
+    hasLoadedSeenPlaces,
+    preferences,
+    radiusMiles,
+    userLocation,
+  ]);
 
   async function handleLoadMore() {
     if (loading || isLoadingMore || nextCursor === null) {
@@ -84,7 +213,10 @@ export default function HomeScreen() {
     setIsLoadingMore(true);
 
     try {
-      const preferences = await loadUserSearchPreferences();
+      const searchPreferences = {
+        ...preferences,
+        distance: radiusMiles,
+      };
       const searchCenter = userLocation
         ? {
             lat: userLocation.latitude,
@@ -102,10 +234,23 @@ export default function HomeScreen() {
 
       setData((prev) => {
         const merged = new Map(prev.map((place) => [place.id, place]));
-        for (const place of page.places) {
+        const rankedPagePlaces = rankPlacesByPreferences(
+          page.places,
+          searchPreferences,
+        );
+        const unseenPlaces = getUnseenPlaces(
+          rankedPagePlaces,
+          seenPlaceIdsRef.current,
+          false,
+        );
+
+        for (const place of unseenPlaces) {
           merged.set(place.id, place);
         }
-        return rankPlacesByPreferences(Array.from(merged.values()), preferences);
+        return rankPlacesByPreferences(
+          Array.from(merged.values()),
+          searchPreferences,
+        );
       });
       setNextCursor(page.nextCursor);
     } catch (e) {
@@ -132,6 +277,8 @@ export default function HomeScreen() {
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
           <SwipeDeck
             data={data}
+            onSwipeLeft={markPlaceSeen}
+            onSwipeRight={markPlaceSeen}
             onNearEnd={handleLoadMore}
             hasMore={nextCursor !== null}
             isLoadingMore={isLoadingMore}

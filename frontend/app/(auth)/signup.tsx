@@ -20,7 +20,7 @@ export default function SignUpScreen() {
   const [name, setName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [password, setPassword] = useState<string>("");
-  const [confirmPassword, setConfirmPassword] = useState<string>(""); // NEW
+  const [confirmPassword, setConfirmPassword] = useState<string>("");
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -39,15 +39,29 @@ export default function SignUpScreen() {
     }
 
     setLoading(true);
+
     try {
-      const credential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(credential.user, { displayName: name });
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+
+      await updateProfile(credential.user, {
+        displayName: name,
+      });
+
       router.replace("/(first-time)/distance");
+
     } catch (e: unknown) {
+
       const err = e as { code?: string };
       const code = err.code ?? "";
+
       if (code === "auth/email-already-in-use") {
-        setError("An account with this email already exists. Try logging in.");
+        setError(
+          "An account with this email already exists. Try logging in.",
+        );
       } else if (code === "auth/invalid-email") {
         setError("Please enter a valid email address.");
       } else if (code === "auth/weak-password") {
@@ -55,6 +69,7 @@ export default function SignUpScreen() {
       } else {
         setError("Sign up failed. Please try again.");
       }
+
     } finally {
       setLoading(false);
     }
@@ -65,14 +80,22 @@ export default function SignUpScreen() {
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
-      <ScrollView contentContainerStyle={styles.scroll}>
 
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Text style={styles.backButtonText}>{"< Back"}</Text>
-        </TouchableOpacity>
+      {/* Back Button */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => router.back()}
+      >
+        <Text style={styles.backButtonText}>{"<"} Back</Text>
+      </TouchableOpacity>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
 
         <View style={styles.centered}>
+
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.brand}>SideQuest</Text>
@@ -81,10 +104,12 @@ export default function SignUpScreen() {
 
           {/* Card */}
           <View style={styles.card}>
+
             <Text style={styles.title}>Create Account</Text>
 
             {/* Name */}
             <Text style={styles.label}>Name</Text>
+
             <TextInput
               style={styles.input}
               placeholder="Your full name"
@@ -96,6 +121,7 @@ export default function SignUpScreen() {
 
             {/* Email */}
             <Text style={styles.label}>Email</Text>
+
             <TextInput
               style={styles.input}
               placeholder="you@email.com"
@@ -109,6 +135,7 @@ export default function SignUpScreen() {
 
             {/* Password */}
             <Text style={styles.label}>Password</Text>
+
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
@@ -120,13 +147,18 @@ export default function SignUpScreen() {
                 value={password}
                 onChangeText={setPassword}
               />
+
               <TouchableOpacity
                 onPress={() => setShowPassword((prev) => !prev)}
                 style={styles.eyeButton}
                 activeOpacity={0.6}
               >
                 <Ionicons
-                  name={showPassword ? "eye-off-outline" : "eye-outline"}
+                  name={
+                    showPassword
+                      ? "eye-off-outline"
+                      : "eye-outline"
+                  }
                   size={22}
                   color="#2D6A4F"
                 />
@@ -135,6 +167,7 @@ export default function SignUpScreen() {
 
             {/* Confirm Password */}
             <Text style={styles.label}>Confirm Password</Text>
+
             <View style={styles.passwordContainer}>
               <TextInput
                 style={styles.passwordInput}
@@ -148,8 +181,10 @@ export default function SignUpScreen() {
               />
             </View>
 
-            {/* Error message */}
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {/* Error Message */}
+            {error ? (
+              <Text style={styles.errorText}>{error}</Text>
+            ) : null}
 
             {/* Sign Up Button */}
             <TouchableOpacity
@@ -164,13 +199,16 @@ export default function SignUpScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Login redirect */}
-            <TouchableOpacity onPress={() => router.push("/(auth)/login" as any)}>
+            {/* Login Redirect */}
+            <TouchableOpacity
+              onPress={() => router.push("/(auth)/login" as any)}
+            >
               <Text style={styles.loginText}>
                 Already have an account?{" "}
                 <Text style={styles.loginLink}>Log in</Text>
               </Text>
             </TouchableOpacity>
+
           </View>
         </View>
       </ScrollView>
@@ -179,18 +217,12 @@ export default function SignUpScreen() {
 }
 
 const styles = StyleSheet.create({
+
   container: {
     flex: 1,
     backgroundColor: "#102C26",
   },
-  scroll: {
-    flexGrow: 1,
-    padding: 24,
-  },
-  centered: {
-    justifyContent: "flex-start",
-    marginTop: 16,
-  },
+
   backButton: {
     alignSelf: "flex-start",
     backgroundColor: "#000",
@@ -198,47 +230,67 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 16,
     marginTop: 60,
-    marginBottom: 16,
+    marginLeft: 24,
   },
+
   backButtonText: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
     letterSpacing: 1,
   },
+
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 100,
+    paddingBottom: 40,
+  },
+
+  centered: {
+    justifyContent: "flex-start",
+    alignItems: "center",
+  },
+
   header: {
     alignItems: "center",
     marginBottom: 32,
   },
+
   brand: {
     fontSize: 42,
     fontWeight: "900",
     color: "#fff",
     letterSpacing: 2,
   },
+
   tagline: {
     fontSize: 18,
     color: "#95D5B2",
     letterSpacing: 4,
     marginTop: 4,
   },
+
   card: {
     backgroundColor: "#fff",
     borderRadius: 24,
     borderWidth: 1.5,
     borderColor: "#000",
     padding: 28,
+    width: "100%",
     shadowColor: "#000",
     shadowOpacity: 0.15,
     shadowRadius: 10,
     elevation: 5,
   },
+
   title: {
     fontSize: 26,
     fontWeight: "800",
     color: "#2D6A4F",
     marginBottom: 4,
   },
+
   label: {
     fontSize: 13,
     fontWeight: "600",
@@ -246,6 +298,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     marginTop: 12,
   },
+
   input: {
     backgroundColor: "#F4F4F4",
     borderRadius: 12,
@@ -253,6 +306,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: "#333",
   },
+
   passwordContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -261,16 +315,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E0E0E0",
   },
+
   passwordInput: {
     flex: 1,
     padding: 14,
     fontSize: 15,
     color: "#333",
   },
+
   eyeButton: {
     paddingHorizontal: 14,
     paddingVertical: 14,
   },
+
   button: {
     backgroundColor: "#102C26",
     borderRadius: 14,
@@ -281,25 +338,30 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 16,
   },
+
   buttonText: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
     letterSpacing: 1,
   },
+
   loginText: {
     textAlign: "center",
     color: "#888",
     fontSize: 13,
   },
+
   loginLink: {
     color: "#2D6A4F",
     fontWeight: "700",
   },
+
   errorText: {
     color: "#D9534F",
     fontSize: 13,
     marginTop: 8,
     textAlign: "center",
   },
+
 });

@@ -3,16 +3,33 @@ import { IconSymbol } from "@/components/ui/icon-symbol";
 import { Ionicons } from "@expo/vector-icons";
 import { useSavedPlaces } from "@/context/SavedPlacesContext";
 import {
+  fetchGoogleDirections,
+  type DirectionsMode,
+  type DirectionsRoute,
+} from "@/services/googleDirections";
+import type { ActivityModel } from "@/types/sidequest-models";
+import {
   generateItineraryWithGemini,
   type GeneratedItinerary,
 } from "@/services/geminiItinerary";
-import { buildItineraryViewModel } from "@/services/itineraryEngine";
+import { formatCategoryLabel } from "@/services/placeDisplay";
+import {
+  MAX_ITINERARY_PLACES,
+  MIN_ITINERARY_PLACES,
+  buildItineraryViewModel,
+} from "@/services/itineraryEngine";
 import type { ItineraryStopResult } from "@/types/itinerary";
 import { useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Image,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,7 +38,20 @@ import {
   View,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
+
+type StopItemLayout = {
+  y: number;
+  height: number;
+};
+
+type DragState = {
+  placeId: string;
+  fromIndex: number;
+  targetIndex: number;
+  dy: number;
+};
 
 function formatPrice(min: number, max: number) {
   if (min === 0 && max === 0) {
@@ -60,9 +90,23 @@ function formatHours(minutes: number) {
 
 // Format time object to string (HH:MM AM/PM)
 function formatTimeString(hours: number, minutes: number): string {
-  const period = hours >= 12 ? "PM" : "AM";
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  const normalizedHours = ((hours % 24) + 24) % 24;
+  const period = normalizedHours >= 12 ? "PM" : "AM";
+  const displayHours =
+    normalizedHours > 12
+      ? normalizedHours - 12
+      : normalizedHours === 0
+        ? 12
+        : normalizedHours;
   return `${displayHours}:${minutes.toString().padStart(2, "0")} ${period}`;
+}
+
+function formatMinutesSinceMidnight(minutesSinceMidnight: number): string {
+  const normalized = ((minutesSinceMidnight % 1440) + 1440) % 1440;
+  const hours = Math.floor(normalized / 60);
+  const minutes = normalized % 60;
+
+  return formatTimeString(hours, minutes);
 }
 
 // Parse time string to hours and minutes
@@ -104,207 +148,51 @@ function TravelRow({ stop }: { stop: ItineraryStopResult }) {
   );
 }
 
-// Calculate distance between two coordinates in miles (haversine formula)
-function calculateDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 3958.8; // Earth's radius in miles
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) *
-      Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// Calculate trip duration in hours
-function calculateTripDuration(stops: any[]): number {
-  const validStops = stops.filter((s) => s.location?.lat && s.location?.lng);
-
-  if (validStops.length === 0) return 0;
-
-  // Time spent at each location (1.5 hours per stop)
-  const timePerStop = 1.5;
-  const timeAtLocations = validStops.length * timePerStop;
-
-  // Travel time between stops (estimated at 30 mph average)
-  const averageSpeed = 30; // mph
-  let travelDistance = 0;
-
-  for (let i = 0; i < validStops.length - 1; i++) {
-    const currentStop = validStops[i];
-    const nextStop = validStops[i + 1];
-
-    const distance = calculateDistance(
-      currentStop.location.lat,
-      currentStop.location.lng,
-      nextStop.location.lat,
-      nextStop.location.lng,
-    );
-
-    travelDistance += distance;
-  }
-
-  const travelTime = travelDistance / averageSpeed;
-
-  return timeAtLocations + travelTime;
-}
-
-// Calculate arrival times for all stops
-function calculateArrivalTimes(
-  stops: any[],
+function calculateTimelineTimes(
+  stops: ItineraryStopResult[],
   startHours: number,
   startMinutes: number,
-): string[] {
-  const timePerStop = 1.5; // hours
-  const averageSpeed = 30; // mph
+): { startTime: string; endTime: string }[] {
+  let clock = startHours * 60 + startMinutes;
 
-  let currentHours = startHours;
-  let currentMinutes = startMinutes;
-  const arrivalTimes: string[] = [];
+  return stops.map((stop) => {
+    clock += stop.travelTimeMinsFromPrevious;
+    const startTime = formatMinutesSinceMidnight(clock);
+    clock += stop.durationMins;
+    const endTime = formatMinutesSinceMidnight(clock);
 
-  for (let i = 0; i < stops.length; i++) {
-    // Add arrival time at this stop
-    arrivalTimes.push(formatTimeString(currentHours, currentMinutes));
-
-    // If not the last stop, calculate travel time to next stop
-    if (i < stops.length - 1) {
-      const currentStop = stops[i];
-      const nextStop = stops[i + 1];
-
-      if (currentStop.location?.lat && nextStop.location?.lat) {
-        // Travel time
-        const distance = calculateDistance(
-          currentStop.location.lat,
-          currentStop.location.lng,
-          nextStop.location.lat,
-          nextStop.location.lng,
-        );
-        const travelTimeHours = distance / averageSpeed;
-
-        // Time at current location
-        const totalMinutes =
-          currentMinutes + (travelTimeHours + timePerStop) * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      } else {
-        // Fallback: just add time per stop
-        const totalMinutes = currentMinutes + timePerStop * 60;
-        currentHours += Math.floor(totalMinutes / 60);
-        currentMinutes = Math.floor(totalMinutes % 60);
-      }
-    }
-  }
-
-  return arrivalTimes;
+    return { startTime, endTime };
+  });
 }
 
-// MTA Subway station database for major NYC locations
-const MTA_STATION_MAP: { [key: string]: { station: string; lines: string[] } } =
-  {
-    "statue of liberty": { station: "Bowling Green", lines: ["4", "5"] },
-    "liberty island": { station: "Bowling Green", lines: ["4", "5"] },
-    "metropolitan museum": { station: "86th Street", lines: ["4", "5"] },
-    "met museum": { station: "86th Street", lines: ["4", "5"] },
-    "brooklyn bridge": {
-      station: "Brooklyn Bridge-City Hall",
-      lines: ["4", "5", "6"],
-    },
-    "times square": {
-      station: "Times Square-42nd Street",
-      lines: ["1", "2", "3", "7", "A", "C", "E"],
-    },
-    "central park": {
-      station: "59th Street-Columbus Circle",
-      lines: ["1", "A", "B", "C", "D"],
-    },
-    "empire state building": {
-      station: "34th Street-Herald Square",
-      lines: ["B", "D", "F", "M", "N", "Q", "R", "W"],
-    },
-    "grand central": {
-      station: "Grand Central-42nd Street",
-      lines: ["4", "5", "6", "7"],
-    },
-  };
+const TRANSIT_MODE_OPTIONS: Record<
+  DirectionsMode,
+  { icon: "tram.fill" | "bus.fill" | "figure.walk"; title: string }
+> = {
+  rail: {
+    icon: "tram.fill",
+    title: "Subway",
+  },
+  bus: {
+    icon: "bus.fill",
+    title: "Bus",
+  },
+  walk: {
+    icon: "figure.walk",
+    title: "Walk",
+  },
+};
 
-// Get nearest MTA station for a place
-function getNearestMTAStation(
-  place: any,
-): { station: string; lines: string[] } | null {
-  const placeName = place.name?.toLowerCase() || "";
+function formatRouteStep(step: DirectionsRoute["steps"][number]) {
+  const details: string[] = [];
 
-  // Check for direct match
-  for (const [key, value] of Object.entries(MTA_STATION_MAP)) {
-    if (placeName.includes(key)) {
-      return value;
-    }
+  if (step.lineName) details.push(step.lineName);
+  if (step.numStops) details.push(`${step.numStops} stops`);
+  if (step.durationText && step.travelMode !== "WALK") {
+    details.push(step.durationText);
   }
 
-  // Default fallback
-  return null;
-}
-
-// Get transit directions between two stops
-function getTransitDirections(fromPlace: any, toPlace: any): string {
-  const fromStation = getNearestMTAStation(fromPlace);
-  const toStation = getNearestMTAStation(toPlace);
-
-  if (!fromStation || !toStation) {
-    return "Check MTA website for directions";
-  }
-
-  // Find common lines or suggest transfer
-  const commonLines = fromStation.lines.filter((line) =>
-    toStation.lines.includes(line),
-  );
-
-  if (commonLines.length > 0) {
-    return `Take ${commonLines.join("/")} train from ${fromStation.station} to ${toStation.station}`;
-  } else {
-    // Suggest a transfer (simplified logic)
-    return `From ${fromStation.station} (${fromStation.lines.join("/")}), transfer to ${toStation.station} (${toStation.lines.join("/")})`;
-  }
-}
-
-// Transit options generator
-function getTransitOptions(
-  fromPlace: any,
-  toPlace: any,
-  distanceMiles: number,
-  travelMinutes: number,
-) {
-  const trainDirections = getTransitDirections(fromPlace, toPlace);
-  
-  return {
-    train: {
-      mode: "train",
-      icon: "tram.fill",
-      title: "Subway",
-      time: Math.ceil(travelMinutes * 0.8), // 20% faster with subway
-      description: trainDirections,
-    },
-    bus: {
-      mode: "bus",
-      icon: "bus.fill",
-      title: "Bus",
-      time: Math.ceil(travelMinutes * 1.1), // 10% slower
-      description: `Take local bus from ${fromPlace.name} to ${toPlace.name}`,
-    },
-    walk: {
-      mode: "walk",
-      icon: "figure.walk",
-      title: "Walk",
-      time: Math.ceil((distanceMiles * 20) / 1), // ~20 min per mile
-      description: `Walk ${distanceMiles.toFixed(1)} miles (scenic route)`,
-    },
-  };
+  return details.join(" • ");
 }
 
 // Expandable Transit Directions Component
@@ -316,22 +204,68 @@ function TransitDirections({
   isExpanded,
   onToggle,
 }: {
-  fromPlace: any;
-  toPlace: any;
+  fromPlace: ActivityModel;
+  toPlace: ActivityModel;
   distanceMiles: number;
   travelMinutes: number;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const options = getTransitOptions(fromPlace, toPlace, distanceMiles, travelMinutes);
-  const [selectedMode, setSelectedMode] = useState<"train" | "bus" | "walk">("train");
+  const [selectedMode, setSelectedMode] = useState<DirectionsMode>("rail");
+  const [routes, setRoutes] = useState<
+    Partial<Record<DirectionsMode, DirectionsRoute | null>>
+  >({});
+  const [loadingModes, setLoadingModes] = useState<
+    Partial<Record<DirectionsMode, boolean>>
+  >({});
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showAllSteps, setShowAllSteps] = useState(false);
+  const selectedRoute = routes[selectedMode];
+  const isLoading = Boolean(loadingModes[selectedMode]);
+  const isWalkMode = selectedMode === "walk";
+  const visibleSteps = selectedRoute?.steps
+    ? showAllSteps
+      ? selectedRoute.steps
+      : selectedRoute.steps.slice(0, 3)
+    : [];
+
+  useEffect(() => {
+    if (!isExpanded || selectedRoute !== undefined) {
+      return;
+    }
+
+    let isCurrent = true;
+
+    setLoadingModes((prev) => ({ ...prev, [selectedMode]: true }));
+    setErrorMessage(null);
+
+    fetchGoogleDirections(fromPlace, toPlace, selectedMode)
+      .then((route) => {
+        if (!isCurrent) return;
+        setRoutes((prev) => ({ ...prev, [selectedMode]: route }));
+      })
+      .catch((error) => {
+        if (!isCurrent) return;
+        console.log("Failed to fetch Google transit directions:", error);
+        setRoutes((prev) => ({ ...prev, [selectedMode]: null }));
+        setErrorMessage("Live directions are unavailable right now.");
+      })
+      .finally(() => {
+        if (!isCurrent) return;
+        setLoadingModes((prev) => ({ ...prev, [selectedMode]: false }));
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [fromPlace, isExpanded, selectedMode, selectedRoute, toPlace]);
 
   return (
     <View style={styles.transitContainer}>
       <Pressable style={styles.transitHeader} onPress={onToggle}>
         <View style={styles.transitHeaderLeft}>
           <IconSymbol size={18} name="tram.fill" color="#102C26" />
-          <Text style={styles.transitHeaderText}>Transit Options</Text>
+          <Text style={styles.transitHeaderText}>Live Transit Directions</Text>
         </View>
         <Ionicons
           name={isExpanded ? "chevron-up" : "chevron-down"}
@@ -343,9 +277,19 @@ function TransitDirections({
       {isExpanded && (
         <View style={styles.transitContent}>
           <View style={styles.transitModes}>
-            {(Object.keys(options) as Array<"train" | "bus" | "walk">).map(
+            {(Object.keys(TRANSIT_MODE_OPTIONS) as DirectionsMode[]).map(
               (mode) => {
-                const option = options[mode];
+                const option = TRANSIT_MODE_OPTIONS[mode];
+                const route = routes[mode];
+                const modeIsLoading = Boolean(loadingModes[mode]);
+                const timeLabel = modeIsLoading
+                  ? "..."
+                  : route
+                    ? route.durationText
+                    : route === null
+                      ? "No route"
+                      : "Tap";
+
                 return (
                   <Pressable
                     key={mode}
@@ -357,7 +301,7 @@ function TransitDirections({
                   >
                     <IconSymbol
                       size={16}
-                      name={option.icon as any}
+                      name={option.icon}
                       color={selectedMode === mode ? "#FFFFFF" : "#34524C"}
                     />
                     <Text
@@ -365,6 +309,7 @@ function TransitDirections({
                         styles.transitModeText,
                         selectedMode === mode && styles.transitModeTextActive,
                       ]}
+                      numberOfLines={1}
                     >
                       {option.title}
                     </Text>
@@ -373,12 +318,13 @@ function TransitDirections({
                         styles.transitModeTime,
                         selectedMode === mode && styles.transitModeTimeActive,
                       ]}
+                      numberOfLines={1}
                     >
-                      {option.time}m
+                      {timeLabel}
                     </Text>
                   </Pressable>
                 );
-              }
+              },
             )}
           </View>
 
@@ -389,13 +335,88 @@ function TransitDirections({
               </View>
               <View style={styles.transitDetailsContent}>
                 <Text style={styles.transitDetailsLabel}>From</Text>
-                <Text style={styles.transitDetailsPlace}>{fromPlace.name}</Text>
+                <Text style={styles.transitDetailsPlace} numberOfLines={2}>
+                  {fromPlace.name}
+                </Text>
               </View>
             </View>
 
-            <View style={styles.transitArrowContainer}>
-              <View style={styles.transitArrowLine} />
-              <Text style={styles.transitArrowIcon}>↓</Text>
+            <View style={styles.transitDirectionsBetween}>
+              <View style={styles.transitRouteLineColumn}>
+                <View style={styles.transitArrowLine} />
+                <View style={styles.transitDirectionsIcon}>
+                  <IconSymbol
+                    size={16}
+                    name={TRANSIT_MODE_OPTIONS[selectedMode].icon}
+                    color="#102C26"
+                  />
+                </View>
+                <View style={styles.transitArrowLine} />
+              </View>
+
+              <View style={styles.transitDirectionsBox}>
+                <View style={styles.transitDirectionsContent}>
+                  <Text style={styles.transitDirectionsText}>
+                    {isLoading
+                      ? "Loading live Google directions..."
+                      : selectedRoute
+                        ? isWalkMode
+                          ? `Walk from ${fromPlace.name} to ${toPlace.name} in ${selectedRoute.durationText}.`
+                          : selectedRoute.summary
+                        : (errorMessage ??
+                          "No live route found for this option.")}
+                  </Text>
+
+                  {selectedRoute?.steps.length && !isWalkMode ? (
+                    <>
+                      <ScrollView
+                        style={[
+                          styles.transitStepsScroller,
+                          showAllSteps && styles.transitStepsScrollerExpanded,
+                        ]}
+                        contentContainerStyle={styles.transitSteps}
+                        nestedScrollEnabled
+                        scrollEnabled={showAllSteps}
+                        showsVerticalScrollIndicator={showAllSteps}
+                      >
+                        {visibleSteps.map((step, stepIndex) => (
+                          <View
+                            key={`${step.instruction}-${stepIndex}`}
+                            style={styles.transitStepRow}
+                          >
+                            <Text style={styles.transitStepBullet}>
+                              {stepIndex + 1}
+                            </Text>
+                            <View style={styles.transitStepCopy}>
+                              <Text style={styles.transitStepText}>
+                                {step.instruction}
+                              </Text>
+                              {formatRouteStep(step) ? (
+                                <Text style={styles.transitStepMeta}>
+                                  {formatRouteStep(step)}
+                                </Text>
+                              ) : null}
+                            </View>
+                          </View>
+                        ))}
+                      </ScrollView>
+
+                      {selectedRoute.steps.length > 3 ? (
+                        <Pressable
+                          style={styles.transitStepsToggle}
+                          onPress={() => setShowAllSteps((current) => !current)}
+                        >
+                          <Text style={styles.transitMoreStepsText}>
+                            {showAllSteps
+                              ? "Show fewer steps"
+                              : `+${selectedRoute.steps.length - 3} more steps`}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </>
+                  ) : null}
+                </View>
+              </View>
             </View>
 
             <View style={styles.transitDetailsRow}>
@@ -404,35 +425,25 @@ function TransitDirections({
               </View>
               <View style={styles.transitDetailsContent}>
                 <Text style={styles.transitDetailsLabel}>To</Text>
-                <Text style={styles.transitDetailsPlace}>{toPlace.name}</Text>
+                <Text style={styles.transitDetailsPlace} numberOfLines={2}>
+                  {toPlace.name}
+                </Text>
               </View>
-            </View>
-
-            <View style={styles.transitDirectionsBox}>
-              <View style={styles.transitDirectionsIcon}>
-                <IconSymbol
-                  size={16}
-                  name={options[selectedMode].icon as any}
-                  color="#102C26"
-                />
-              </View>
-              <Text style={styles.transitDirectionsText}>
-                {options[selectedMode].description}
-              </Text>
             </View>
 
             <View style={styles.transitSummary}>
               <View style={styles.transitSummaryItem}>
                 <Text style={styles.transitSummaryLabel}>Duration</Text>
-                <Text style={styles.transitSummaryValue}>
-                  {options[selectedMode].time} min
+                <Text style={styles.transitSummaryValue} numberOfLines={1}>
+                  {selectedRoute?.durationText ?? `${travelMinutes} min`}
                 </Text>
               </View>
               <View style={styles.transitSummaryDivider} />
               <View style={styles.transitSummaryItem}>
                 <Text style={styles.transitSummaryLabel}>Distance</Text>
-                <Text style={styles.transitSummaryValue}>
-                  {distanceMiles.toFixed(1)} mi
+                <Text style={styles.transitSummaryValue} numberOfLines={1}>
+                  {selectedRoute?.distanceText ??
+                    `${distanceMiles.toFixed(1)} mi`}
                 </Text>
               </View>
             </View>
@@ -523,7 +534,7 @@ function StartTimeCard({
             style={styles.customTimeButton}
             onPress={() => setShowCustomModal(true)}
           >
-            <IconSymbol size={14} name="plus" color="#102C26" />
+            <Ionicons size={14} name="add" color="#102C26" />
             <Text style={styles.customTimeButtonText}>Custom</Text>
           </Pressable>
         </ScrollView>
@@ -554,10 +565,7 @@ function StartTimeCard({
               >
                 <Text style={styles.modalCancelText}>Cancel</Text>
               </Pressable>
-              <Pressable
-                style={styles.modalConfirm}
-                onPress={handleCustomTime}
-              >
+              <Pressable style={styles.modalConfirm} onPress={handleCustomTime}>
                 <Text style={styles.modalConfirmText}>Set Time</Text>
               </Pressable>
             </View>
@@ -570,12 +578,13 @@ function StartTimeCard({
 
 export default function ItineraryScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
   const {
     itineraryPlaces,
     generatedItinerary,
     generateItinerary,
     removeFromItinerary,
+    reorderItineraryPlace,
+    applyItineraryOrder,
   } = useSavedPlaces();
 
   // State for start time and expanded transit
@@ -583,10 +592,115 @@ export default function ItineraryScreen() {
   const [expandedTransitStop, setExpandedTransitStop] = useState<number | null>(
     null,
   );
+  const [isEditingItinerary, setIsEditingItinerary] = useState(false); // state for trigerring edit state
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const dragStateRef = useRef<DragState | null>(null);
+  const stopLayoutsRef = useRef<Record<string, StopItemLayout>>({});
 
   const itineraryView = useMemo(
     () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
     [generatedItinerary, itineraryPlaces],
+  );
+  // Drag for changing order of places
+  const updateDragState = useCallback((nextDragState: DragState | null) => {
+    dragStateRef.current = nextDragState;
+    setDragState(nextDragState);
+  }, []);
+
+  const getDragTargetIndex = useCallback(
+    (placeId: string, dy: number) => {
+      const activeLayout = stopLayoutsRef.current[placeId];
+      if (!activeLayout) {
+        return dragStateRef.current?.fromIndex ?? 0;
+      }
+
+      const activeCenter = activeLayout.y + activeLayout.height / 2 + dy;
+      const orderedLayouts = itineraryView
+        .map(({ place }, index) => {
+          if (place.id === placeId) {
+            return null;
+          }
+
+          const layout = stopLayoutsRef.current[place.id];
+          return layout
+            ? {
+                index,
+                center: layout.y + layout.height / 2,
+              }
+            : null;
+        })
+        .filter(
+          (item): item is { index: number; center: number } => item !== null,
+        );
+
+      if (orderedLayouts.length === 0) {
+        return dragStateRef.current?.fromIndex ?? 0;
+      }
+
+      const targetIndex = orderedLayouts.filter(
+        (item) => activeCenter > item.center,
+      ).length;
+
+      return Math.min(targetIndex, itineraryView.length - 1);
+    },
+    [itineraryView],
+  );
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: () => dragStateRef.current !== null,
+        onPanResponderMove: (_event, gestureState) => {
+          const currentDragState = dragStateRef.current;
+          if (!currentDragState) {
+            return;
+          }
+
+          updateDragState({
+            ...currentDragState,
+            dy: gestureState.dy,
+            targetIndex: getDragTargetIndex(
+              currentDragState.placeId,
+              gestureState.dy,
+            ),
+          });
+        },
+        onPanResponderRelease: () => {
+          const currentDragState = dragStateRef.current;
+          updateDragState(null);
+
+          if (
+            currentDragState &&
+            currentDragState.fromIndex !== currentDragState.targetIndex
+          ) {
+            reorderItineraryPlace(
+              currentDragState.fromIndex,
+              currentDragState.targetIndex,
+            );
+          }
+        },
+        onPanResponderTerminate: () => {
+          updateDragState(null);
+        },
+      }),
+    [getDragTargetIndex, reorderItineraryPlace, updateDragState],
+  );
+  // Listen for call/when place is picked up
+  const startStopDrag = useCallback(
+    (placeId: string, index: number) => {
+      if (!isEditingItinerary) {
+        return;
+      }
+
+      updateDragState({
+        placeId,
+        fromIndex: index,
+        targetIndex: index,
+        dy: 0,
+      });
+      setExpandedTransitStop(null);
+    },
+    [isEditingItinerary, updateDragState],
   );
 
   const [aiItinerary, setAiItinerary] = useState<GeneratedItinerary | null>(
@@ -596,13 +710,16 @@ export default function ItineraryScreen() {
   const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   const handleGenerateWithAi = useCallback(async () => {
-    if (itineraryPlaces.length < 5 || isGeneratingAi) return;
+    if (itineraryPlaces.length < MIN_ITINERARY_PLACES || isGeneratingAi) return;
 
     setAiModalVisible(true);
     setIsGeneratingAi(true);
 
     try {
-      const result = await generateItineraryWithGemini(itineraryPlaces);
+      const result = await generateItineraryWithGemini(
+        itineraryPlaces,
+        formatTimeString(startTime.hours, startTime.minutes),
+      );
       setAiItinerary(result);
     } catch (error) {
       console.error("Failed to generate AI itinerary:", error);
@@ -610,16 +727,30 @@ export default function ItineraryScreen() {
     } finally {
       setIsGeneratingAi(false);
     }
-  }, [itineraryPlaces, isGeneratingAi]);
-  // Calculate arrival times based on start time
-  const arrivalTimes = useMemo(
+  }, [itineraryPlaces, isGeneratingAi, startTime]);
+
+  const handleApplyAiItinerary = useCallback(() => {
+    if (!aiItinerary || aiItinerary.stops.length === 0) {
+      setAiModalVisible(false);
+      return;
+    }
+
+    const orderedIds = [...aiItinerary.stops]
+      .sort((a, b) => a.order - b.order)
+      .map((stop) => stop.place.id);
+
+    applyItineraryOrder(orderedIds);
+    setAiModalVisible(false);
+  }, [aiItinerary, applyItineraryOrder]);
+
+  const timelineTimes = useMemo(
     () =>
-      calculateArrivalTimes(
-        itineraryPlaces,
+      calculateTimelineTimes(
+        itineraryView.map(({ stop }) => stop),
         startTime.hours,
         startTime.minutes,
       ),
-    [itineraryPlaces, startTime],
+    [itineraryView, startTime],
   );
 
   // Calculate map region for miniature preview
@@ -663,8 +794,8 @@ export default function ItineraryScreen() {
     };
   }, [itineraryPlaces]);
 
-  if (itineraryPlaces.length < 5) {
-    const placesNeeded = 5 - itineraryPlaces.length;
+  if (itineraryPlaces.length < MIN_ITINERARY_PLACES) {
+    const placesNeeded = MIN_ITINERARY_PLACES - itineraryPlaces.length;
 
     return (
       <View style={styles.emptyState}>
@@ -673,7 +804,8 @@ export default function ItineraryScreen() {
         </View>
         <Text style={styles.emptyTitle}>Build your day plan</Text>
         <Text style={styles.emptyText}>
-          Select at least 5 saved places to generate an itinerary for the day.
+          Select at least {MIN_ITINERARY_PLACES} saved places to generate an
+          itinerary for the day. You can add up to {MAX_ITINERARY_PLACES}.
         </Text>
         <Text style={styles.selectionCount}>
           {itineraryPlaces.length} selected • {placesNeeded} more to go
@@ -710,285 +842,357 @@ export default function ItineraryScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Itinerary</Text>
-        <Text style={styles.headerSubtitle}>
-          Generated from {itineraryPlaces.length} selected places
-        </Text>
-      </View>
-
-      {/* START TIME PICKER */}
-      <StartTimeCard
-        startTime={startTime}
-        onTimeChange={(hours, minutes) =>
-          setStartTime({ hours, minutes })
-        }
-      />
-
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryIconBox}>
-          <IconSymbol size={28} name="map" color="#102C26" />
+    <SafeAreaView style={styles.container} edges={["top"]}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        scrollEnabled={!dragState}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Your Itinerary</Text>
+          <Text style={styles.headerSubtitle}>
+            Generated from {itineraryPlaces.length} selected places
+          </Text>
         </View>
 
-        <View style={styles.summaryCopy}>
-          <Text style={styles.summaryTitle}>
-            {generatedItinerary?.title ?? "Your Day Plan"}
-          </Text>
+        {/* START TIME PICKER */}
+        <StartTimeCard
+          startTime={startTime}
+          onTimeChange={(hours, minutes) => setStartTime({ hours, minutes })}
+        />
 
-          <View style={styles.summaryMetaRow}>
-            <Text style={styles.summaryMetaText}>
-              {generatedItinerary?.totalStops ?? itineraryPlaces.length} stops
-            </Text>
-            <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>
-              {formatHours(
-                (generatedItinerary?.totalActivityMinutes ?? 0) +
-                  (generatedItinerary?.totalTravelMinutes ?? 0),
-              )}
-            </Text>
-            <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>
-              Est. ${generatedItinerary?.totalEstimatedCost ?? 0}
-            </Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryIconBox}>
+            <IconSymbol size={28} name="map" color="#102C26" />
           </View>
 
-          <Text style={styles.summaryRange}>
-            {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
-            {arrivalTimes.length > 0
-              ? arrivalTimes[arrivalTimes.length - 1]
-              : "End time"}
-          </Text>
+          <View style={styles.summaryCopy}>
+            <Text style={styles.summaryTitle}>
+              {generatedItinerary?.title ?? "Your Day Plan"}
+            </Text>
+
+            <View style={styles.summaryMetaRow}>
+              <Text style={styles.summaryMetaText}>
+                {generatedItinerary?.totalStops ?? itineraryPlaces.length} stops
+              </Text>
+              <Text style={styles.summaryMetaDot}>•</Text>
+              <Text style={styles.summaryMetaText}>
+                {formatHours(
+                  (generatedItinerary?.totalActivityMinutes ?? 0) +
+                    (generatedItinerary?.totalTravelMinutes ?? 0),
+                )}
+              </Text>
+              <Text style={styles.summaryMetaDot}>•</Text>
+              <Text style={styles.summaryMetaText}>
+                Est. ${generatedItinerary?.totalEstimatedCost ?? 0}
+              </Text>
+            </View>
+
+            <Text style={styles.summaryRange}>
+              {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
+              {timelineTimes.length > 0
+                ? timelineTimes[timelineTimes.length - 1].endTime
+                : "End time"}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Pressable
-        style={[styles.aiButton, isGeneratingAi && styles.aiButtonDisabled]}
-        onPress={handleGenerateWithAi}
-        disabled={isGeneratingAi}
-      >
-        <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
-        <Text style={styles.aiButtonText}>
-          {isGeneratingAi ? "Generating..." : "Generate route with Gemini"}
-        </Text>
-      </Pressable>
-
-      <View style={styles.actionRow}>
-        <Pressable style={styles.generateButton} onPress={generateItinerary}>
-          <Text style={styles.generateButtonText}>Regenerate itinerary</Text>
-        </Pressable>
-
         <Pressable
-          style={styles.secondaryButton}
-          onPress={() => router.navigate("/saved")}
+          style={[styles.aiButton, isGeneratingAi && styles.aiButtonDisabled]}
+          onPress={handleGenerateWithAi}
+          disabled={isGeneratingAi}
         >
-          <Text style={styles.secondaryButtonText}>Edit selections</Text>
+          <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
+          <Text style={styles.aiButtonText}>
+            {isGeneratingAi ? "Generating..." : "Generate with Gemini"}
+          </Text>
         </Pressable>
-      </View>
 
-      <View style={styles.stopsHeader}>
-        <View style={styles.stopsHeaderLeft}>
-          <IconSymbol size={18} name="list.bullet" color="#102C26" />
-          <Text style={styles.stopsTitle}>Day timeline</Text>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.generateButton} onPress={generateItinerary}>
+            <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.generateButtonText}>Regenerate</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.secondaryButton,
+              isEditingItinerary && styles.secondaryButtonEditing,
+            ]}
+            onPress={() => {
+              if (dragStateRef.current) {
+                return;
+              }
+
+              setIsEditingItinerary((current) => !current);
+            }}
+          >
+            <Ionicons
+              name={isEditingItinerary ? "checkmark-outline" : "pencil-outline"}
+              size={18}
+              color={isEditingItinerary ? "#FFFFFF" : "#102C26"}
+            />
+
+            <Text
+              style={[
+                styles.secondaryButtonText,
+                isEditingItinerary && styles.secondaryButtonTextEditing,
+              ]}
+            >
+              {isEditingItinerary ? "Done" : "Edit"}
+            </Text>
+          </Pressable>
         </View>
-      </View>
 
-      <View style={styles.timelineWrapper}>
-        <View style={styles.timelineRail} />
+        <View style={styles.stopsHeader}>
+          <View style={styles.stopsHeaderLeft}>
+            <IconSymbol size={18} name="list.bullet" color="#102C26" />
+            <Text style={styles.stopsTitle}>Day timeline</Text>
+          </View>
+        </View>
 
-        {itineraryView.map(({ stop, place }, index) => {
-          const priceLabel = formatPrice(
-            place.estimatedCost?.min ?? 0,
-            place.estimatedCost?.max ?? 0,
-          );
+        <View style={styles.timelineWrapper}>
+          <View style={styles.timelineRail} />
 
-          const nextPlace =
-            index < itineraryPlaces.length - 1
-              ? itineraryPlaces[index + 1]
-              : null;
+          {itineraryView.map(({ stop, place }, index) => {
+            const priceLabel = formatPrice(
+              place.estimatedCost?.min ?? 0,
+              place.estimatedCost?.max ?? 0,
+            );
 
-          return (
-            <View key={place.id}>
-              <TravelRow stop={stop} />
+            const nextStopView =
+              index < itineraryView.length - 1
+                ? itineraryView[index + 1]
+                : null;
+            const nextPlace = nextStopView?.place ?? null;
 
-              {/* TRANSIT DIRECTIONS - Under Train Direction */}
-              {nextPlace && (
-                <TransitDirections
-                  fromPlace={place}
-                  toPlace={nextPlace}
-                  distanceMiles={stop.travelDistanceMilesFromPrevious || 1}
-                  travelMinutes={stop.travelTimeMinsFromPrevious || 30}
-                  isExpanded={expandedTransitStop === index}
-                  onToggle={() =>
-                    setExpandedTransitStop(
-                      expandedTransitStop === index ? null : index,
-                    )
-                  }
-                />
-              )}
+            const isDraggingThisStop = dragState?.placeId === place.id;
+            const isDropTarget =
+              dragState &&
+              dragState.placeId !== place.id &&
+              dragState.targetIndex === index;
 
-              <View style={styles.stopRow}>
-                <View style={styles.markerColumn}>
-                  <View style={styles.timelineMarker}>
-                    <Text style={styles.timelineMarkerText}>{stop.order}</Text>
+            return (
+              <View
+                key={place.id}
+                {...(isEditingItinerary ? panResponder.panHandlers : {})}
+                onLayout={(event) => {
+                  stopLayoutsRef.current[place.id] = event.nativeEvent.layout;
+                }}
+                style={[
+                  styles.timelineItem,
+                  isDropTarget && styles.timelineItemDropTarget,
+                  isDraggingThisStop && [
+                    styles.timelineItemDragging,
+                    { transform: [{ translateY: dragState.dy }] },
+                  ],
+                ]}
+              >
+                <View style={styles.stopRow}>
+                  <View style={styles.markerColumn}>
+                    <View style={styles.timelineMarker}>
+                      <Text style={styles.timelineMarkerText}>
+                        {stop.order}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Pressable
-                  style={styles.stopCard}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/itinerary/[placeId]",
-                      params: { placeId: place.id },
-                    })
-                  }
-                >
-                  {place.links?.imageUrl ? (
-                    <Image
-                      source={{ uri: place.links.imageUrl }}
-                      style={styles.stopImage}
-                    />
-                  ) : (
-                    <View style={[styles.stopImage, styles.imageFallback]}>
-                      <Text style={styles.imageFallbackText}>POI</Text>
-                    </View>
-                  )}
+                  <Pressable
+                    style={styles.stopCard}
+                    delayLongPress={220}
+                    onLongPress={
+                      isEditingItinerary
+                        ? () => startStopDrag(place.id, index)
+                        : undefined
+                    }
+                    onPress={() => {
+                      if (dragStateRef.current) {
+                        return;
+                      }
 
-                  <View style={styles.stopContent}>
-                    <View style={styles.stopTopRow}>
-                      <View>
-                        <Text style={styles.timeText}>
-                          {arrivalTimes[index] || stop.startTime} -{" "}
-                          {stop.endTime}
-                        </Text>
-                        <Text style={styles.durationText}>
-                          {stop.durationMins} min stop
-                        </Text>
+                      router.push({
+                        pathname: "/itinerary/[placeId]",
+                        params: { placeId: place.id },
+                      });
+                    }}
+                  >
+                    {place.links?.imageUrl ? (
+                      <Image
+                        source={{ uri: place.links.imageUrl }}
+                        style={styles.stopImage}
+                      />
+                    ) : (
+                      <View style={[styles.stopImage, styles.imageFallback]}>
+                        <Text style={styles.imageFallbackText}>POI</Text>
                       </View>
-                      <View style={styles.stopActionsRow}>
-                        <Pressable
-                          style={styles.deleteButton}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            removeFromItinerary(place.id);
-                          }}
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
+                    )}
 
-                    <Text style={styles.stopTitle} numberOfLines={2}>
-                      {place.name}
-                    </Text>
-
-                    <Text style={styles.stopAddress} numberOfLines={1}>
-                      {formatLocation(
-                        place.location?.city,
-                        place.location?.state,
-                      )}
-                    </Text>
-
-                    <View style={styles.chipRow}>
-                      <View
-                        style={[
-                          styles.priceChip,
-                          priceLabel === "Free"
-                            ? styles.priceChipMint
-                            : styles.priceChipDark,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.priceChipText,
-                            priceLabel === "Free"
-                              ? styles.priceChipTextMint
-                              : styles.priceChipTextDark,
-                          ]}
-                        >
-                          {priceLabel}
-                        </Text>
-                      </View>
-
-                      {!!place.category ? (
-                        <View style={styles.categoryChip}>
-                          <Text style={styles.categoryChipText}>
-                            {place.category}
+                    <View style={styles.stopContent}>
+                      <View style={styles.stopTopRow}>
+                        <View>
+                          <Text style={styles.timeText}>
+                            {timelineTimes[index]?.startTime ?? stop.startTime}{" "}
+                            - {timelineTimes[index]?.endTime ?? stop.endTime}
+                          </Text>
+                          <Text style={styles.durationText}>
+                            {stop.durationMins} min stop
                           </Text>
                         </View>
-                      ) : null}
-                    </View>
-                  </View>
-                </Pressable>
-              </View>
-            </View>
-          );
-        })}
-      </View>
+                        <View style={styles.stopActionsRow}>
+                          {isEditingItinerary ? (
+                            <Ionicons
+                              name="reorder-three-outline"
+                              size={20}
+                              color="#34524C"
+                            />
+                          ) : null}
+                          <Pressable
+                            style={styles.deleteButton}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              if (dragStateRef.current) {
+                                return;
+                              }
+                              removeFromItinerary(place.id);
+                            }}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                          </Pressable>
+                        </View>
+                      </View>
 
-      <View style={styles.mapCard}>
-        <MapView
-          style={styles.mapPreview}
-          initialRegion={mapRegion}
-          scrollEnabled={false}
-          zoomEnabled={false}
-          pitchEnabled={false}
-          rotateEnabled={false}
-        >
-          {/* Polyline connecting all stops */}
-          {itineraryPlaces.length > 1 && (
-            <Polyline
-              coordinates={itineraryPlaces
-                .filter((p) => p.location?.lat && p.location?.lng)
-                .map((place) => ({
+                      <Text style={styles.stopTitle} numberOfLines={2}>
+                        {place.name}
+                      </Text>
+
+                      <Text style={styles.stopAddress} numberOfLines={1}>
+                        {formatLocation(
+                          place.location?.city,
+                          place.location?.state,
+                        )}
+                      </Text>
+
+                      <View style={styles.chipRow}>
+                        <View
+                          style={[
+                            styles.priceChip,
+                            priceLabel === "Free"
+                              ? styles.priceChipMint
+                              : styles.priceChipDark,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.priceChipText,
+                              priceLabel === "Free"
+                                ? styles.priceChipTextMint
+                                : styles.priceChipTextDark,
+                            ]}
+                          >
+                            {priceLabel}
+                          </Text>
+                        </View>
+
+                        {!!place.category ? (
+                          <View style={styles.categoryChip}>
+                            <Text style={styles.categoryChipText}>
+                              {formatCategoryLabel(place.category, place.type)}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                    </View>
+                  </Pressable>
+                </View>
+
+                {nextStopView && nextPlace ? (
+                  <>
+                    <TransitDirections
+                      fromPlace={place}
+                      toPlace={nextPlace}
+                      distanceMiles={
+                        nextStopView.stop.travelDistanceMilesFromPrevious || 1
+                      }
+                      travelMinutes={
+                        nextStopView.stop.travelTimeMinsFromPrevious || 30
+                      }
+                      isExpanded={expandedTransitStop === index}
+                      onToggle={() =>
+                        setExpandedTransitStop(
+                          expandedTransitStop === index ? null : index,
+                        )
+                      }
+                    />
+                    <TravelRow stop={nextStopView.stop} />
+                  </>
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+
+        <View style={styles.mapCard}>
+          <MapView
+            style={styles.mapPreview}
+            initialRegion={mapRegion}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+          >
+            {/* Polyline connecting all stops */}
+            {itineraryPlaces.length > 1 && (
+              <Polyline
+                coordinates={itineraryPlaces
+                  .filter((p) => p.location?.lat && p.location?.lng)
+                  .map((place) => ({
+                    latitude: place.location.lat,
+                    longitude: place.location.lng,
+                  }))}
+                strokeColor="#102C26"
+                strokeWidth={3}
+              />
+            )}
+
+            {/* Markers for each stop */}
+            {itineraryView.map(({ stop, place }) => (
+              <Marker
+                key={place.id}
+                coordinate={{
                   latitude: place.location.lat,
                   longitude: place.location.lng,
-                }))}
-              strokeColor="#102C26"
-              strokeWidth={3}
-            />
-          )}
+                }}
+                title={place.name}
+              >
+                <View style={styles.largeMarker}>
+                  <Text style={styles.largeMarkerText}>{stop.order}</Text>
+                </View>
+              </Marker>
+            ))}
+          </MapView>
 
-          {/* Markers for each stop */}
-          {itineraryView.map(({ stop, place }) => (
-            <Marker
-              key={place.id}
-              coordinate={{
-                latitude: place.location.lat,
-                longitude: place.location.lng,
-              }}
-              title={place.name}
-            >
-              <View style={styles.largeMarker}>
-                <Text style={styles.largeMarkerText}>{stop.order}</Text>
-              </View>
-            </Marker>
-          ))}
-        </MapView>
+          <Pressable
+            style={styles.routeButton}
+            onPress={() => router.navigate("/map")}
+          >
+            <Text style={styles.routeButtonText}>View full route</Text>
+            <IconSymbol size={16} name="chevron.right" color="#102C26" />
+          </Pressable>
+        </View>
 
-        <Pressable
-          style={styles.routeButton}
-          onPress={() => router.navigate("/map")}
-        >
-          <Text style={styles.routeButtonText}>View full route</Text>
-          <IconSymbol size={16} name="chevron.right" color="#102C26" />
-        </Pressable>
-      </View>
-
-      <AiItineraryModal
-        visible={aiModalVisible}
-        itinerary={aiItinerary}
-        isLoading={isGeneratingAi}
-        onClose={() => setAiModalVisible(false)}
-      />
-    </ScrollView>
+        <AiItineraryModal
+          visible={aiModalVisible}
+          itinerary={aiItinerary}
+          isLoading={isGeneratingAi}
+          onClose={() => setAiModalVisible(false)}
+          onApply={handleApplyAiItinerary}
+        />
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -998,7 +1202,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#DBFEF7",
   },
   content: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 15,
     paddingTop: 24,
     paddingBottom: 36,
   },
@@ -1018,9 +1222,9 @@ const styles = StyleSheet.create({
   },
   startTimeCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: "#102C26",
+    borderColor: "black",
     padding: 16,
     marginBottom: 18,
   },
@@ -1057,8 +1261,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   quickTimeButtonActive: {
-    backgroundColor: "#103B34",
-    borderColor: "#103B34",
+    backgroundColor: "#102C26",
+    borderColor: "#102C26",
   },
   quickTimeButtonText: {
     fontSize: 13,
@@ -1090,9 +1294,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 14,
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: "#102C26",
+    borderColor: "black",
     padding: 16,
     marginBottom: 18,
   },
@@ -1138,9 +1342,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#0B3B33",
-    borderRadius: 18,
-    paddingVertical: 16,
+    backgroundColor: "#102C26",
+    borderRadius: 20,
+    paddingVertical: 15,
     marginBottom: 12,
     borderWidth: 2,
     borderColor: "#102C26",
@@ -1152,6 +1356,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     color: "#FFFFFF",
+  },
   miniMarker: {
     width: 28,
     height: 28,
@@ -1169,16 +1374,20 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     marginBottom: 24,
   },
   generateButton: {
     flex: 1,
-    backgroundColor: "#0B3B33",
-    borderRadius: 18,
-    paddingVertical: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#102C26",
+    borderRadius: 20,
+    paddingVertical: 15,
+    borderWidth: 2,
+    borderColor: "#102C26",
   },
   generateButtonText: {
     fontSize: 16,
@@ -1187,23 +1396,32 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    paddingVertical: 16,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    paddingVertical: 15,
     borderWidth: 2,
     borderColor: "#102C26",
+  },
+  secondaryButtonEditing: {
+    backgroundColor: "#102C26",
   },
   secondaryButtonText: {
     fontSize: 16,
     fontWeight: "800",
     color: "#102C26",
   },
+  secondaryButtonTextEditing: {
+    color: "#FFFFFF",
+  },
 
   // Transit Directions Styles
   transitContainer: {
-    marginHorizontal: 30,
+    marginLeft: 18,
+    marginRight: 24,
     marginBottom: 14,
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -1233,7 +1451,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1.5,
     borderTopColor: "#D0E8E2",
     paddingHorizontal: 14,
-    paddingVertical: 14,
+    paddingVertical: 12,
   },
   transitModes: {
     flexDirection: "row",
@@ -1242,12 +1460,12 @@ const styles = StyleSheet.create({
   },
   transitModeButton: {
     flex: 1,
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    gap: 4,
+    minHeight: 70,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     borderRadius: 12,
     backgroundColor: "#FFFFFF",
     borderWidth: 1.5,
@@ -1258,23 +1476,26 @@ const styles = StyleSheet.create({
     borderColor: "#34524C",
   },
   transitModeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "700",
     color: "#34524C",
+    textAlign: "center",
   },
   transitModeTextActive: {
     color: "#FFFFFF",
   },
   transitModeTime: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
     color: "#5A7069",
+    textAlign: "center",
+    maxWidth: "100%",
   },
   transitModeTimeActive: {
     color: "#FFFFFF",
   },
   transitDetails: {
-    gap: 12,
+    gap: 14,
   },
   transitDetailsRow: {
     flexDirection: "row",
@@ -1296,6 +1517,7 @@ const styles = StyleSheet.create({
   },
   transitDetailsContent: {
     flex: 1,
+    minWidth: 0,
     justifyContent: "center",
   },
   transitDetailsLabel: {
@@ -1308,6 +1530,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#102C26",
     marginTop: 2,
+    lineHeight: 17,
   },
   transitArrowContainer: {
     alignItems: "center",
@@ -1323,15 +1546,25 @@ const styles = StyleSheet.create({
     color: "#102C26",
     fontWeight: "800",
   },
-  transitDirectionsBox: {
+  transitDirectionsBetween: {
     flexDirection: "row",
-    gap: 10,
-    padding: 12,
+    gap: 12,
+    alignItems: "stretch",
+  },
+  transitRouteLineColumn: {
+    width: 28,
+    alignItems: "center",
+    alignSelf: "stretch",
+  },
+  transitDirectionsBox: {
+    flex: 1,
+    minWidth: 0,
+    padding: 14,
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: "#D0E8E2",
-    alignItems: "flex-start",
+    alignItems: "stretch",
   },
   transitDirectionsIcon: {
     width: 28,
@@ -1343,15 +1576,73 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   transitDirectionsText: {
-    flex: 1,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: "#34524C",
-    lineHeight: 18,
+    lineHeight: 19,
+  },
+  transitDirectionsContent: {
+    flex: 1,
+    minWidth: 0,
+    width: "100%",
+    gap: 10,
+  },
+  transitStepsScroller: {
+    width: "100%",
+  },
+  transitStepsScrollerExpanded: {
+    maxHeight: 260,
+  },
+  transitSteps: {
+    gap: 8,
+    paddingBottom: 2,
+  },
+  transitStepRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  transitStepBullet: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#34524C",
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  transitStepCopy: {
+    flex: 1,
+    minWidth: 0,
+    gap: 3,
+  },
+  transitStepText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#102C26",
+    lineHeight: 17,
+  },
+  transitStepMeta: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#5A7069",
+    lineHeight: 15,
+  },
+  transitMoreStepsText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#5A7069",
+  },
+  transitStepsToggle: {
+    alignSelf: "flex-start",
+    marginLeft: 28,
+    paddingVertical: 4,
+    paddingRight: 8,
   },
   transitSummary: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
     paddingVertical: 10,
     paddingHorizontal: 12,
     backgroundColor: "#FFFFFF",
@@ -1369,10 +1660,12 @@ const styles = StyleSheet.create({
     color: "#5A7069",
   },
   transitSummaryValue: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "800",
     color: "#102C26",
     marginTop: 4,
+    textAlign: "center",
+    maxWidth: "100%",
   },
   transitSummaryDivider: {
     width: 1,
@@ -1405,6 +1698,20 @@ const styles = StyleSheet.create({
     width: 3,
     borderRadius: 999,
     backgroundColor: "#12362E",
+  },
+  timelineItem: {
+    borderRadius: 24,
+  },
+  timelineItemDropTarget: {
+    backgroundColor: "rgba(16, 44, 38, 0.08)",
+  },
+  timelineItemDragging: {
+    zIndex: 20,
+    shadowColor: "#000000",
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
   },
   travelRow: {
     flexDirection: "row",
@@ -1466,7 +1773,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
     backgroundColor: "#FFFFFF",
-    borderRadius: 22,
+    borderRadius: 28,
     borderWidth: 2,
     borderColor: "#102C26",
     padding: 12,
@@ -1596,9 +1903,9 @@ const styles = StyleSheet.create({
   },
   mapCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    borderRadius: 28,
     borderWidth: 2,
-    borderColor: "#102C26",
+    borderColor: "black",
     overflow: "hidden",
     marginBottom: 22,
   },

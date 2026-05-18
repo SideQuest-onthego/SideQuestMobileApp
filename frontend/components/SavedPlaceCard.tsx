@@ -2,6 +2,8 @@ import React from "react";
 import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import { useSavedPlaces } from "../context/SavedPlacesContext";
+import { MAX_ITINERARY_PLACES } from "@/services/itineraryEngine";
+import { Ionicons } from "@expo/vector-icons";
 
 type SavedPlaceCardProps = {
   item: ActivityModel;
@@ -10,42 +12,56 @@ type SavedPlaceCardProps = {
   onAddToItinerary?: (item: ActivityModel) => void;
 };
 
+function formatPrice(min: number, max: number) {
+  if (min === 0 && max === 0) return "Free";
+  if (min === max) return `$${min}`;
+  return `$${min}-$${max}`;
+}
+
 export default function SavedPlaceCard({
   item,
   onRemove,
   onPress,
   onAddToItinerary,
 }: SavedPlaceCardProps) {
-
   const { itineraryPlaces } = useSavedPlaces();
 
-  const isAdded = itineraryPlaces.some(p => p.id === item.id);
+  const isAdded = itineraryPlaces.some((p) => p.id === item.id);
+  const isItineraryFull = itineraryPlaces.length >= MAX_ITINERARY_PLACES;
 
   return (
     <Pressable style={styles.card} onPress={() => onPress?.(item)}>
       {/* Left: Image */}
-      {item.links?.imageUrl ? (
-        <Image source={{ uri: item.links.imageUrl }} style={styles.image} />
-      ) : (
-        <View style={[styles.image, styles.imagePlaceholder]}>
-          <Text style={styles.imagePlaceholderText}>No Image</Text>
-        </View>
-      )}
+      <View style={styles.imageContainer}>
+        {item.links?.imageUrl ? (
+          <Image
+            source={{ uri: item.links.imageUrl }}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={[styles.image, styles.imagePlaceholder]}>
+            <Text style={styles.imagePlaceholderText}>No Image</Text>
+          </View>
+        )}
+      </View>
 
       {/* Middle: Info */}
       <View style={styles.infoContainer}>
         <View>
           <Text style={styles.title}>{item.name}</Text>
-          <Text style={styles.description}>
-            {item.location.address}, {item.location.city}
+          <Text style={styles.description} numberOfLines={1}>
+            {item.location.city}, {item.location.state}
+          </Text>
+          <Text style={styles.metaText}>
+            {formatPrice(item.estimatedCost.min, item.estimatedCost.max)}
           </Text>
         </View>
 
         {/* Buttons */}
         <View style={styles.buttonRow}>
-
           {/* Add to Itinerary button */}
-          {!isAdded && (
+          {!isAdded && !isItineraryFull && (
             <Pressable
               onPress={(event) => {
                 event.stopPropagation();
@@ -56,6 +72,11 @@ export default function SavedPlaceCard({
               <Text style={styles.addText}>Add To Itinerary</Text>
             </Pressable>
           )}
+          {!isAdded && isItineraryFull && (
+            <View style={styles.fullBadge}>
+              <Text style={styles.fullBadgeText}>Itinerary full</Text>
+            </View>
+          )}
           {/* Remove button */}
           <Pressable
             onPress={(event) => {
@@ -64,7 +85,7 @@ export default function SavedPlaceCard({
             }}
             style={styles.removeButton}
           >
-            <Text style={styles.removeText}>Remove</Text>
+            <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>
@@ -74,31 +95,39 @@ export default function SavedPlaceCard({
 
 const styles = StyleSheet.create({
   card: {
-  flexDirection: "row",
-  backgroundColor: "#FFFFFF",
-  borderWidth: 2,
-  borderColor: "#000000",
-  borderRadius: 12,
-  padding: 16,
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#000000",
+    borderRadius: 28,
+    padding: 16,
+    alignItems: "center",
 
-  
-  width: "92%",
-  alignSelf: "center",
+    width: "92%",
+    alignSelf: "center",
 
-  marginBottom: 14,
+    marginBottom: 14,
 
-  shadowColor: "#000",
-  shadowOffset: { width: 0, height: 2 },
-  shadowOpacity: 0.1,
-  shadowRadius: 4,
-  elevation: 3,
-},
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
 
-  image: {
+  imageContainer: {
     width: 100,
     height: 100,
-    borderRadius: 8,
+    borderRadius: 20,
     marginRight: 12,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  image: {
+    width: "100%",
+    height: "100%",
   },
 
   imagePlaceholder: {
@@ -136,10 +165,12 @@ const styles = StyleSheet.create({
   },
 
   removeButton: {
-    backgroundColor: "#000",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,0,0,0.6)",
   },
 
   removeText: {
@@ -148,14 +179,32 @@ const styles = StyleSheet.create({
   },
 
   addButton: {
-    backgroundColor: "#000",
+    backgroundColor: "#102C26",
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,
+    borderRadius: 20,
   },
 
   addText: {
     color: "#fff",
     fontWeight: "600",
+  },
+
+  fullBadge: {
+    backgroundColor: "#D8E2DC",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+
+  fullBadgeText: {
+    color: "#102C26",
+    fontWeight: "600",
+  },
+  metaText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#102C26",
+    marginTop: 6,
   },
 });

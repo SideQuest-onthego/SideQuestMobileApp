@@ -139,12 +139,7 @@ export default function DistanceScreen() {
       <AuthBackground variant="tl">
          <View style={styles.container}>
             <View style={styles.content}>
-               <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={() => router.push("/(tabs)/explore")}
-               >
-                  <Text style={styles.backButtonText}>Back to Explore</Text>
-               </TouchableOpacity>
+
 
                <View style={styles.card}>
                   <Text style={styles.title}>Set your travel distance</Text>
@@ -228,7 +223,7 @@ export default function DistanceScreen() {
                            Alert.alert("No location set", "Use GPS first.");
                            return;
                         }
-                        router.push("/travel");
+                        router.push("/budget");
                      }}
                   >
                      <Text

@@ -6,20 +6,31 @@ const MAX_NEARBY_RADIUS_METERS = 50000;
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MAX_RESULTS_PER_REQUEST = 20;
 const INCLUDED_TYPES = ["tourist_attraction", "museum", "park", "restaurant"];
-const REQUESTS_PER_PAGE = 2;
+const REQUESTS_PER_PAGE = INCLUDED_TYPES.length;
 
 const nearbyPlacesCache = new Map<
   string,
   { expiresAt: number; places: ActivityModel[] }
 >();
+const placePhotoUrlCache = new Map<string, string | undefined>();
 
 type NearbySearchResponse = {
   places?: GooglePlace[];
 };
 
+type PlaceDetailsResponse = {
+  photos?: {
+    name: string;
+  }[];
+};
+
 export type NearbyPlacesPage = {
   places: ActivityModel[];
   nextCursor: number | null;
+};
+
+type NearbyPlacesOptions = {
+  forceRefresh?: boolean;
 };
 
 type SearchCenter = {
@@ -101,7 +112,41 @@ function googleTypeToActivityType(
 function getPhotoUrl(photoName?: string) {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!photoName || !apiKey) return undefined;
-  return `https://places.googleapis.com/v1/${photoName}/media?maxHeightPx=900&key=${apiKey}`;
+  return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=1200&maxHeightPx=900&key=${apiKey}`;
+}
+
+export async function fetchGooglePlacePhotoUrl(
+  googlePlaceId: string,
+): Promise<string | undefined> {
+  const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return undefined;
+
+  if (placePhotoUrlCache.has(googlePlaceId)) {
+    return placePhotoUrlCache.get(googlePlaceId);
+  }
+
+  const response = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(googlePlaceId)}`,
+    {
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask": "photos",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    throw new Error(
+      `Google Place Details request failed: ${response.status} ${errorBody}`,
+    );
+  }
+
+  const json = (await response.json()) as PlaceDetailsResponse;
+  const photoUrl = getPhotoUrl(json.photos?.[0]?.name);
+  placePhotoUrlCache.set(googlePlaceId, photoUrl);
+
+  return photoUrl;
 }
 
 function metersToLatitudeDegrees(meters: number) {
@@ -139,17 +184,59 @@ function getCacheKey(
 
 function buildSearchPlan(radiusMeters: number, origin: SearchCenter) {
   const searchCenters = buildSearchCenters(radiusMeters, origin);
-  return INCLUDED_TYPES.flatMap((includedType) =>
-    searchCenters.map((center) => ({ includedType, center })),
+  const [primaryCenter, ...secondaryCenters] = searchCenters;
+
+  const primaryRequests = INCLUDED_TYPES.map((includedType) => ({
+    includedType,
+    center: primaryCenter,
+  }));
+
+  const secondaryRequests = secondaryCenters.flatMap((center) =>
+    INCLUDED_TYPES.map((includedType) => ({ includedType, center })),
   );
+
+  return [...primaryRequests, ...secondaryRequests];
 }
 
-function placeToActivity(place: GooglePlace): ActivityModel | null {
+function parseLocationDetails(place: GooglePlace) {
+  const address = place.formattedAddress ?? place.shortFormattedAddress ?? "";
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const city =
+    parts.length >= 3 ? parts[parts.length - 3] : parts.length === 2 ? parts[0] : "";
+
+  const regionPart =
+    parts.length >= 3 ? parts[parts.length - 2] : parts.length === 2 ? parts[1] : "";
+  const regionTokens = regionPart.split(/\s+/).filter(Boolean);
+  const state = regionTokens[0] ?? "";
+
+  const country = parts.length >= 3 ? parts[parts.length - 1] : "US";
+
+  return {
+    address,
+    city,
+    state,
+    country,
+  };
+}
+
+async function placeToActivity(place: GooglePlace): Promise<ActivityModel | null> {
   if (!place.id || !place.location) return null;
 
   const name = place.displayName?.text ?? "Unknown place";
   const firstType = place.primaryType ?? place.types?.[0];
-  const imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  let imageUrl = getPhotoUrl(place.photos?.[0]?.name);
+  try {
+    if (!imageUrl) {
+      imageUrl = await fetchGooglePlacePhotoUrl(place.id);
+    }
+  } catch (error) {
+    console.warn(`Failed to load Google photo for ${place.id}:`, error);
+  }
+  const parsedLocation = parseLocationDetails(place);
 
   return {
     id: place.id,
@@ -159,10 +246,10 @@ function placeToActivity(place: GooglePlace): ActivityModel | null {
     tags: place.types ?? [],
     active: true,
     location: {
-      address: place.formattedAddress ?? place.shortFormattedAddress ?? "",
-      city: "New York",
-      state: "NY",
-      country: "US",
+      address: parsedLocation.address,
+      city: parsedLocation.city,
+      state: parsedLocation.state,
+      country: parsedLocation.country,
       lat: place.location.latitude,
       lng: place.location.longitude,
     },
@@ -189,6 +276,7 @@ export async function fetchNearbyPlacesPage(
   center: SearchCenter,
   radiusMeters = TEN_MILES_IN_METERS,
   cursor = 0,
+  options: NearbyPlacesOptions = {},
 ): Promise<NearbyPlacesPage> {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
@@ -221,7 +309,11 @@ export async function fetchNearbyPlacesPage(
       const cacheKey = getCacheKey(safeRadiusMeters, includedType, center);
       const cachedResult = nearbyPlacesCache.get(cacheKey);
 
-      if (cachedResult && cachedResult.expiresAt > Date.now()) {
+      if (
+        !options.forceRefresh &&
+        cachedResult &&
+        cachedResult.expiresAt > Date.now()
+      ) {
         return cachedResult.places;
       }
 
@@ -259,9 +351,12 @@ export async function fetchNearbyPlacesPage(
       }
 
       const json = (await response.json()) as NearbySearchResponse;
-      const places = (json.places ?? [])
-        .map(placeToActivity)
-        .filter((place): place is ActivityModel => Boolean(place));
+      const mappedPlaces = await Promise.all(
+        (json.places ?? []).map(placeToActivity),
+      );
+      const places = mappedPlaces.filter((place): place is ActivityModel =>
+        Boolean(place),
+      );
 
       nearbyPlacesCache.set(cacheKey, {
         expiresAt: Date.now() + CACHE_TTL_MS,
