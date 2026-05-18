@@ -601,7 +601,7 @@ export default function ItineraryScreen() {
     () => buildItineraryViewModel(generatedItinerary, itineraryPlaces),
     [generatedItinerary, itineraryPlaces],
   );
-// Drag for changing order of places
+  // Drag for changing order of places
   const updateDragState = useCallback((nextDragState: DragState | null) => {
     dragStateRef.current = nextDragState;
     setDragState(nextDragState);
@@ -685,7 +685,7 @@ export default function ItineraryScreen() {
       }),
     [getDragTargetIndex, reorderItineraryPlace, updateDragState],
   );
-// Listen for call/when place is picked up
+  // Listen for call/when place is picked up
   const startStopDrag = useCallback(
     (placeId: string, index: number) => {
       if (!isEditingItinerary) {
@@ -844,338 +844,354 @@ export default function ItineraryScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      scrollEnabled={!dragState}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Your Itinerary</Text>
-        <Text style={styles.headerSubtitle}>
-          Generated from {itineraryPlaces.length} selected places
-        </Text>
-      </View>
-
-      {/* START TIME PICKER */}
-      <StartTimeCard
-        startTime={startTime}
-        onTimeChange={(hours, minutes) => setStartTime({ hours, minutes })}
-      />
-
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryIconBox}>
-          <IconSymbol size={28} name="map" color="#102C26" />
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        scrollEnabled={!dragState}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Your Itinerary</Text>
+          <Text style={styles.headerSubtitle}>
+            Generated from {itineraryPlaces.length} selected places
+          </Text>
         </View>
 
-        <View style={styles.summaryCopy}>
-          <Text style={styles.summaryTitle}>
-            {generatedItinerary?.title ?? "Your Day Plan"}
-          </Text>
+        {/* START TIME PICKER */}
+        <StartTimeCard
+          startTime={startTime}
+          onTimeChange={(hours, minutes) => setStartTime({ hours, minutes })}
+        />
 
-          <View style={styles.summaryMetaRow}>
-            <Text style={styles.summaryMetaText}>
-              {generatedItinerary?.totalStops ?? itineraryPlaces.length} stops
-            </Text>
-            <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>
-              {formatHours(
-                (generatedItinerary?.totalActivityMinutes ?? 0) +
-                  (generatedItinerary?.totalTravelMinutes ?? 0),
-              )}
-            </Text>
-            <Text style={styles.summaryMetaDot}>•</Text>
-            <Text style={styles.summaryMetaText}>
-              Est. ${generatedItinerary?.totalEstimatedCost ?? 0}
-            </Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryIconBox}>
+            <IconSymbol size={28} name="map" color="#102C26" />
           </View>
 
-          <Text style={styles.summaryRange}>
-            {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
-            {timelineTimes.length > 0
-              ? timelineTimes[timelineTimes.length - 1].endTime
-              : "End time"}
-          </Text>
+          <View style={styles.summaryCopy}>
+            <Text style={styles.summaryTitle}>
+              {generatedItinerary?.title ?? "Your Day Plan"}
+            </Text>
+
+            <View style={styles.summaryMetaRow}>
+              <Text style={styles.summaryMetaText}>
+                {generatedItinerary?.totalStops ?? itineraryPlaces.length} stops
+              </Text>
+              <Text style={styles.summaryMetaDot}>•</Text>
+              <Text style={styles.summaryMetaText}>
+                {formatHours(
+                  (generatedItinerary?.totalActivityMinutes ?? 0) +
+                    (generatedItinerary?.totalTravelMinutes ?? 0),
+                )}
+              </Text>
+              <Text style={styles.summaryMetaDot}>•</Text>
+              <Text style={styles.summaryMetaText}>
+                Est. ${generatedItinerary?.totalEstimatedCost ?? 0}
+              </Text>
+            </View>
+
+            <Text style={styles.summaryRange}>
+              {formatTimeString(startTime.hours, startTime.minutes)} -{" "}
+              {timelineTimes.length > 0
+                ? timelineTimes[timelineTimes.length - 1].endTime
+                : "End time"}
+            </Text>
+          </View>
         </View>
-      </View>
-      <Pressable
-        style={[styles.aiButton, isGeneratingAi && styles.aiButtonDisabled]}
-        onPress={handleGenerateWithAi}
-        disabled={isGeneratingAi}
-      >
-        <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
-        <Text style={styles.aiButtonText}>
-          {isGeneratingAi ? "Generating..." : "Generate with Gemini"}
-        </Text>
-      </Pressable>
-
-      <View style={styles.actionRow}>
-        <Pressable style={styles.generateButton} onPress={generateItinerary}>
-          <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.generateButtonText}>Regenerate</Text>
-        </Pressable>
-
         <Pressable
-          style={[
-            styles.secondaryButton,
-            isEditingItinerary && styles.secondaryButtonEditing,
-          ]}
-          onPress={() => {
-            if (dragStateRef.current) {
-              return;
-            }
-
-            setIsEditingItinerary((current) => !current);
-          }}
+          style={[styles.aiButton, isGeneratingAi && styles.aiButtonDisabled]}
+          onPress={handleGenerateWithAi}
+          disabled={isGeneratingAi}
         >
-          <Ionicons name="pencil-outline" size={18} color="#102C26" />
-          <Text style={styles.secondaryButtonText}>Edit</Text>
+          <IconSymbol size={18} name="sparkles" color="#FFFFFF" />
+          <Text style={styles.aiButtonText}>
+            {isGeneratingAi ? "Generating..." : "Generate with Gemini"}
+          </Text>
         </Pressable>
-      </View>
 
-      <View style={styles.stopsHeader}>
-        <View style={styles.stopsHeaderLeft}>
-          <IconSymbol size={18} name="list.bullet" color="#102C26" />
-          <Text style={styles.stopsTitle}>Day timeline</Text>
-        </View>
-      </View>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.generateButton} onPress={generateItinerary}>
+            <Ionicons name="refresh-outline" size={18} color="#FFFFFF" />
+            <Text style={styles.generateButtonText}>Regenerate</Text>
+          </Pressable>
 
-      <View style={styles.timelineWrapper}>
-        <View style={styles.timelineRail} />
+          <Pressable
+            style={[
+              styles.secondaryButton,
+              isEditingItinerary && styles.secondaryButtonEditing,
+            ]}
+            onPress={() => {
+              if (dragStateRef.current) {
+                return;
+              }
 
-        {itineraryView.map(({ stop, place }, index) => {
-          const priceLabel = formatPrice(
-            place.estimatedCost?.min ?? 0,
-            place.estimatedCost?.max ?? 0,
-          );
+              setIsEditingItinerary((current) => !current);
+            }}
+          >
+            <Ionicons
+              name={isEditingItinerary ? "checkmark-outline" : "pencil-outline"}
+              size={18}
+              color={isEditingItinerary ? "#FFFFFF" : "#102C26"}
+            />
 
-          const nextStopView =
-            index < itineraryView.length - 1 ? itineraryView[index + 1] : null;
-          const nextPlace = nextStopView?.place ?? null;
-
-          const isDraggingThisStop = dragState?.placeId === place.id;
-          const isDropTarget =
-            dragState &&
-            dragState.placeId !== place.id &&
-            dragState.targetIndex === index;
-
-          return (
-            <View
-              key={place.id}
-              {...(isEditingItinerary ? panResponder.panHandlers : {})}
-              onLayout={(event) => {
-                stopLayoutsRef.current[place.id] = event.nativeEvent.layout;
-              }}
+            <Text
               style={[
-                styles.timelineItem,
-                isDropTarget && styles.timelineItemDropTarget,
-                isDraggingThisStop && [
-                  styles.timelineItemDragging,
-                  { transform: [{ translateY: dragState.dy }] },
-                ],
+                styles.secondaryButtonText,
+                isEditingItinerary && styles.secondaryButtonTextEditing,
               ]}
             >
-              <View style={styles.stopRow}>
-                <View style={styles.markerColumn}>
-                  <View style={styles.timelineMarker}>
-                    <Text style={styles.timelineMarkerText}>{stop.order}</Text>
+              {isEditingItinerary ? "Done" : "Edit"}
+            </Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.stopsHeader}>
+          <View style={styles.stopsHeaderLeft}>
+            <IconSymbol size={18} name="list.bullet" color="#102C26" />
+            <Text style={styles.stopsTitle}>Day timeline</Text>
+          </View>
+        </View>
+
+        <View style={styles.timelineWrapper}>
+          <View style={styles.timelineRail} />
+
+          {itineraryView.map(({ stop, place }, index) => {
+            const priceLabel = formatPrice(
+              place.estimatedCost?.min ?? 0,
+              place.estimatedCost?.max ?? 0,
+            );
+
+            const nextStopView =
+              index < itineraryView.length - 1
+                ? itineraryView[index + 1]
+                : null;
+            const nextPlace = nextStopView?.place ?? null;
+
+            const isDraggingThisStop = dragState?.placeId === place.id;
+            const isDropTarget =
+              dragState &&
+              dragState.placeId !== place.id &&
+              dragState.targetIndex === index;
+
+            return (
+              <View
+                key={place.id}
+                {...(isEditingItinerary ? panResponder.panHandlers : {})}
+                onLayout={(event) => {
+                  stopLayoutsRef.current[place.id] = event.nativeEvent.layout;
+                }}
+                style={[
+                  styles.timelineItem,
+                  isDropTarget && styles.timelineItemDropTarget,
+                  isDraggingThisStop && [
+                    styles.timelineItemDragging,
+                    { transform: [{ translateY: dragState.dy }] },
+                  ],
+                ]}
+              >
+                <View style={styles.stopRow}>
+                  <View style={styles.markerColumn}>
+                    <View style={styles.timelineMarker}>
+                      <Text style={styles.timelineMarkerText}>
+                        {stop.order}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                <Pressable
-                  style={styles.stopCard}
-                  delayLongPress={220}
-                  onLongPress={
-                    isEditingItinerary
-                      ? () => startStopDrag(place.id, index)
-                      : undefined
-                  }
-                  onPress={() => {
-                    if (dragStateRef.current) {
-                      return;
+                  <Pressable
+                    style={styles.stopCard}
+                    delayLongPress={220}
+                    onLongPress={
+                      isEditingItinerary
+                        ? () => startStopDrag(place.id, index)
+                        : undefined
                     }
+                    onPress={() => {
+                      if (dragStateRef.current) {
+                        return;
+                      }
 
-                    router.push({
-                      pathname: "/itinerary/[placeId]",
-                      params: { placeId: place.id },
-                    });
-                  }}
-                >
-                  {place.links?.imageUrl ? (
-                    <Image
-                      source={{ uri: place.links.imageUrl }}
-                      style={styles.stopImage}
-                    />
-                  ) : (
-                    <View style={[styles.stopImage, styles.imageFallback]}>
-                      <Text style={styles.imageFallbackText}>POI</Text>
-                    </View>
-                  )}
-
-                  <View style={styles.stopContent}>
-                    <View style={styles.stopTopRow}>
-                      <View>
-                        <Text style={styles.timeText}>
-                          {timelineTimes[index]?.startTime ?? stop.startTime} -{" "}
-                          {timelineTimes[index]?.endTime ?? stop.endTime}
-                        </Text>
-                        <Text style={styles.durationText}>
-                          {stop.durationMins} min stop
-                        </Text>
+                      router.push({
+                        pathname: "/itinerary/[placeId]",
+                        params: { placeId: place.id },
+                      });
+                    }}
+                  >
+                    {place.links?.imageUrl ? (
+                      <Image
+                        source={{ uri: place.links.imageUrl }}
+                        style={styles.stopImage}
+                      />
+                    ) : (
+                      <View style={[styles.stopImage, styles.imageFallback]}>
+                        <Text style={styles.imageFallbackText}>POI</Text>
                       </View>
-                      <View style={styles.stopActionsRow}>
-                        {isEditingItinerary ? (
-                          <Ionicons
-                            name="reorder-three-outline"
-                            size={20}
-                            color="#34524C"
-                          />
-                        ) : null}
-                        <Pressable
-                          style={styles.deleteButton}
-                          onPress={(event) => {
-                            event.stopPropagation();
-                            if (dragStateRef.current) {
-                              return;
-                            }
-                            removeFromItinerary(place.id);
-                          }}
-                        >
-                          <Ionicons
-                            name="trash-outline"
-                            size={16}
-                            color="#FFFFFF"
-                          />
-                        </Pressable>
-                      </View>
-                    </View>
+                    )}
 
-                    <Text style={styles.stopTitle} numberOfLines={2}>
-                      {place.name}
-                    </Text>
-
-                    <Text style={styles.stopAddress} numberOfLines={1}>
-                      {formatLocation(
-                        place.location?.city,
-                        place.location?.state,
-                      )}
-                    </Text>
-
-                    <View style={styles.chipRow}>
-                      <View
-                        style={[
-                          styles.priceChip,
-                          priceLabel === "Free"
-                            ? styles.priceChipMint
-                            : styles.priceChipDark,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.priceChipText,
-                            priceLabel === "Free"
-                              ? styles.priceChipTextMint
-                              : styles.priceChipTextDark,
-                          ]}
-                        >
-                          {priceLabel}
-                        </Text>
-                      </View>
-
-                      {!!place.category ? (
-                        <View style={styles.categoryChip}>
-                          <Text style={styles.categoryChipText}>
-                            {formatCategoryLabel(place.category, place.type)}
+                    <View style={styles.stopContent}>
+                      <View style={styles.stopTopRow}>
+                        <View>
+                          <Text style={styles.timeText}>
+                            {timelineTimes[index]?.startTime ?? stop.startTime}{" "}
+                            - {timelineTimes[index]?.endTime ?? stop.endTime}
+                          </Text>
+                          <Text style={styles.durationText}>
+                            {stop.durationMins} min stop
                           </Text>
                         </View>
-                      ) : null}
+                        <View style={styles.stopActionsRow}>
+                          {isEditingItinerary ? (
+                            <Ionicons
+                              name="reorder-three-outline"
+                              size={20}
+                              color="#34524C"
+                            />
+                          ) : null}
+                          <Pressable
+                            style={styles.deleteButton}
+                            onPress={(event) => {
+                              event.stopPropagation();
+                              if (dragStateRef.current) {
+                                return;
+                              }
+                              removeFromItinerary(place.id);
+                            }}
+                          >
+                            <Ionicons
+                              name="trash-outline"
+                              size={16}
+                              color="#FFFFFF"
+                            />
+                          </Pressable>
+                        </View>
+                      </View>
+
+                      <Text style={styles.stopTitle} numberOfLines={2}>
+                        {place.name}
+                      </Text>
+
+                      <Text style={styles.stopAddress} numberOfLines={1}>
+                        {formatLocation(
+                          place.location?.city,
+                          place.location?.state,
+                        )}
+                      </Text>
+
+                      <View style={styles.chipRow}>
+                        <View
+                          style={[
+                            styles.priceChip,
+                            priceLabel === "Free"
+                              ? styles.priceChipMint
+                              : styles.priceChipDark,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.priceChipText,
+                              priceLabel === "Free"
+                                ? styles.priceChipTextMint
+                                : styles.priceChipTextDark,
+                            ]}
+                          >
+                            {priceLabel}
+                          </Text>
+                        </View>
+
+                        {!!place.category ? (
+                          <View style={styles.categoryChip}>
+                            <Text style={styles.categoryChipText}>
+                              {formatCategoryLabel(place.category, place.type)}
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
-                </Pressable>
+                  </Pressable>
+                </View>
+
+                {nextStopView && nextPlace ? (
+                  <>
+                    <TransitDirections
+                      fromPlace={place}
+                      toPlace={nextPlace}
+                      distanceMiles={
+                        nextStopView.stop.travelDistanceMilesFromPrevious || 1
+                      }
+                      travelMinutes={
+                        nextStopView.stop.travelTimeMinsFromPrevious || 30
+                      }
+                      isExpanded={expandedTransitStop === index}
+                      onToggle={() =>
+                        setExpandedTransitStop(
+                          expandedTransitStop === index ? null : index,
+                        )
+                      }
+                    />
+                    <TravelRow stop={nextStopView.stop} />
+                  </>
+                ) : null}
               </View>
+            );
+          })}
+        </View>
 
-              {nextStopView && nextPlace ? (
-                <>
-                  <TransitDirections
-                    fromPlace={place}
-                    toPlace={nextPlace}
-                    distanceMiles={
-                      nextStopView.stop.travelDistanceMilesFromPrevious || 1
-                    }
-                    travelMinutes={
-                      nextStopView.stop.travelTimeMinsFromPrevious || 30
-                    }
-                    isExpanded={expandedTransitStop === index}
-                    onToggle={() =>
-                      setExpandedTransitStop(
-                        expandedTransitStop === index ? null : index,
-                      )
-                    }
-                  />
-                  <TravelRow stop={nextStopView.stop} />
-                </>
-              ) : null}
-            </View>
-          );
-        })}
-      </View>
+        <View style={styles.mapCard}>
+          <MapView
+            style={styles.mapPreview}
+            initialRegion={mapRegion}
+            scrollEnabled={false}
+            zoomEnabled={false}
+            pitchEnabled={false}
+            rotateEnabled={false}
+          >
+            {/* Polyline connecting all stops */}
+            {itineraryPlaces.length > 1 && (
+              <Polyline
+                coordinates={itineraryPlaces
+                  .filter((p) => p.location?.lat && p.location?.lng)
+                  .map((place) => ({
+                    latitude: place.location.lat,
+                    longitude: place.location.lng,
+                  }))}
+                strokeColor="#102C26"
+                strokeWidth={3}
+              />
+            )}
 
-      <View style={styles.mapCard}>
-        <MapView
-          style={styles.mapPreview}
-          initialRegion={mapRegion}
-          scrollEnabled={false}
-          zoomEnabled={false}
-          pitchEnabled={false}
-          rotateEnabled={false}
-        >
-          {/* Polyline connecting all stops */}
-          {itineraryPlaces.length > 1 && (
-            <Polyline
-              coordinates={itineraryPlaces
-                .filter((p) => p.location?.lat && p.location?.lng)
-                .map((place) => ({
+            {/* Markers for each stop */}
+            {itineraryView.map(({ stop, place }) => (
+              <Marker
+                key={place.id}
+                coordinate={{
                   latitude: place.location.lat,
                   longitude: place.location.lng,
-                }))}
-              strokeColor="#102C26"
-              strokeWidth={3}
-            />
-          )}
+                }}
+                title={place.name}
+              >
+                <View style={styles.largeMarker}>
+                  <Text style={styles.largeMarkerText}>{stop.order}</Text>
+                </View>
+              </Marker>
+            ))}
+          </MapView>
 
-          {/* Markers for each stop */}
-          {itineraryView.map(({ stop, place }) => (
-            <Marker
-              key={place.id}
-              coordinate={{
-                latitude: place.location.lat,
-                longitude: place.location.lng,
-              }}
-              title={place.name}
-            >
-              <View style={styles.largeMarker}>
-                <Text style={styles.largeMarkerText}>{stop.order}</Text>
-              </View>
-            </Marker>
-          ))}
-        </MapView>
+          <Pressable
+            style={styles.routeButton}
+            onPress={() => router.navigate("/map")}
+          >
+            <Text style={styles.routeButtonText}>View full route</Text>
+            <IconSymbol size={16} name="chevron.right" color="#102C26" />
+          </Pressable>
+        </View>
 
-        <Pressable
-          style={styles.routeButton}
-          onPress={() => router.navigate("/map")}
-        >
-          <Text style={styles.routeButtonText}>View full route</Text>
-          <IconSymbol size={16} name="chevron.right" color="#102C26" />
-        </Pressable>
-      </View>
-
-      <AiItineraryModal
-        visible={aiModalVisible}
-        itinerary={aiItinerary}
-        isLoading={isGeneratingAi}
-        onClose={() => setAiModalVisible(false)}
-        onApply={handleApplyAiItinerary}
-      />
-    </ScrollView>
+        <AiItineraryModal
+          visible={aiModalVisible}
+          itinerary={aiItinerary}
+          isLoading={isGeneratingAi}
+          onClose={() => setAiModalVisible(false)}
+          onApply={handleApplyAiItinerary}
+        />
+      </ScrollView>
     </SafeAreaView>
   );
 }
