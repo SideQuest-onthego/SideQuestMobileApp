@@ -234,7 +234,7 @@ const App = () => {
             { transform: [{ scale: buttonScale }] },
           ]}
         >
-          <Link href="/explore" asChild>
+          <Link href="/(tabs)/home" asChild>
             <Pressable style={styles.button}>
               <Text style={styles.buttonText}>Explore</Text>
             </Pressable>

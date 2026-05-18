@@ -51,20 +51,6 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
-        options={{
-          title: "Explore",
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              size={28}
-              name={focused ? "compass" : "compass-outline"}
-              color={color}
-            />
-          ),
-        }}
-      />
-
-      <Tabs.Screen
         name="saved"
         options={{
           title: "Saved",
