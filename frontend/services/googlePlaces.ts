@@ -29,6 +29,10 @@ export type NearbyPlacesPage = {
   nextCursor: number | null;
 };
 
+type NearbyPlacesOptions = {
+  forceRefresh?: boolean;
+};
+
 type SearchCenter = {
   lat: number;
   lng: number;
@@ -272,6 +276,7 @@ export async function fetchNearbyPlacesPage(
   center: SearchCenter,
   radiusMeters = TEN_MILES_IN_METERS,
   cursor = 0,
+  options: NearbyPlacesOptions = {},
 ): Promise<NearbyPlacesPage> {
   const apiKey = process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
@@ -304,7 +309,11 @@ export async function fetchNearbyPlacesPage(
       const cacheKey = getCacheKey(safeRadiusMeters, includedType, center);
       const cachedResult = nearbyPlacesCache.get(cacheKey);
 
-      if (cachedResult && cachedResult.expiresAt > Date.now()) {
+      if (
+        !options.forceRefresh &&
+        cachedResult &&
+        cachedResult.expiresAt > Date.now()
+      ) {
         return cachedResult.places;
       }
 
