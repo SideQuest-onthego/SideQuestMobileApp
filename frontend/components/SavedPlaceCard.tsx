@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, Pressable } from "react-native";
 import type { ActivityModel } from "../types/sidequest-models";
 import { useSavedPlaces } from "../context/SavedPlacesContext";
 import { MAX_ITINERARY_PLACES } from "@/services/itineraryEngine";
+import { Ionicons } from "@expo/vector-icons";
 
 type SavedPlaceCardProps = {
   item: ActivityModel;
@@ -84,7 +85,7 @@ export default function SavedPlaceCard({
             }}
             style={styles.removeButton}
           >
-            <Text style={styles.removeText}>Remove</Text>
+            <Ionicons name="trash-outline" size={16} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>
@@ -164,10 +165,12 @@ const styles = StyleSheet.create({
   },
 
   removeButton: {
-    backgroundColor: "#102C26",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,0,0,0.6)",
   },
 
   removeText: {
